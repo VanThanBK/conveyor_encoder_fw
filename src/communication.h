@@ -51,12 +51,16 @@ private:
     void send_encoder_infor();
 
     void send_conveyor_infor();
-
+    void send_ethernet_infor();
+    void send_ethernet_ip();
 public:
     void init();
     void execute();
     void response(String _mes);
     void send_done();
+
+    void send_input_a_state();
+    void send_input_b_state();
 };
 
 extern communication control_port;

@@ -217,6 +217,8 @@ void Conveyor::setConveyorMode(uint8_t _enable)
     ExecuteStepTimer.pause();
     TurnPinTimer.pause();
 
+    digitalWrite(MOTOR_EN_PIN, HIGH);
+
     current_position = 0;
     current_speed = 0;
     pulse_counter = 0;

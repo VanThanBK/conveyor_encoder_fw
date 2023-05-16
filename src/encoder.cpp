@@ -96,18 +96,18 @@ void Encoder::__encoder_handle(uint8_t _channel)
 
         if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
         {
-            String _mes = "I0 V" +  String(a_input_state);
+            String _mes = "I0 V" + String(a_input_state);
             control_port.response(_mes);
             a_input_state_last = a_input_state;
         }
 
         if (b_input_state != b_input_state_last && is_auto_feedback_b == true)
         {
-            String _mes = "I1 V" +  String(b_input_state);
+            String _mes = "I1 V" + String(b_input_state);
             control_port.response(_mes);
             b_input_state_last = b_input_state;
         }
-        
+
         return;
     }
 
@@ -136,11 +136,11 @@ void Encoder::__encoder_handle(uint8_t _channel)
     {
         if (digitalRead(_secondary_pin))
         {
-            pulse_counter+=_offset;
+            pulse_counter += _offset;
         }
         else
         {
-            pulse_counter-=_offset;
+            pulse_counter -= _offset;
         }
     }
     else if (encoder_scale == SCALE_X2)
@@ -149,22 +149,22 @@ void Encoder::__encoder_handle(uint8_t _channel)
         {
             if (digitalRead(_secondary_pin))
             {
-                pulse_counter+=_offset;
+                pulse_counter += _offset;
             }
             else
             {
-                pulse_counter-=_offset;
+                pulse_counter -= _offset;
             }
         }
         else
         {
             if (digitalRead(_secondary_pin))
             {
-                pulse_counter-=_offset;
+                pulse_counter -= _offset;
             }
             else
             {
-                pulse_counter+=_offset;
+                pulse_counter += _offset;
             }
         }
     }
@@ -176,22 +176,22 @@ void Encoder::__encoder_handle(uint8_t _channel)
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter+=_offset;
+                    pulse_counter += _offset;
                 }
                 else
                 {
-                    pulse_counter-=_offset;
+                    pulse_counter -= _offset;
                 }
             }
             else
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter-=_offset;
+                    pulse_counter -= _offset;
                 }
                 else
                 {
-                    pulse_counter+=_offset;
+                    pulse_counter += _offset;
                 }
             }
         }
@@ -201,33 +201,32 @@ void Encoder::__encoder_handle(uint8_t _channel)
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter-=_offset;
+                    pulse_counter -= _offset;
                 }
                 else
                 {
-                    pulse_counter+=_offset;
+                    pulse_counter += _offset;
                 }
             }
             else
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter+=_offset;
+                    pulse_counter += _offset;
                 }
                 else
                 {
-                    pulse_counter-=_offset;
+                    pulse_counter -= _offset;
                 }
             }
         }
     }
-
 }
 
 void Encoder::__timer_fb_handle()
 {
     float _pos = getPosition();
-    String _mes = "P0:" +  String(_pos, 2);
+    String _mes = "P0:" + String(_pos, 2);
     control_port.response(_mes);
 }
 
@@ -339,13 +338,28 @@ int32_t Encoder::getRelativeEncoderPulse()
 
 float Encoder::getPosition()
 {
+    if (encoder_mode == RELATIVE)
+    {
+        return getRelativePosition();
+    }
+
     current_position = pulse_counter / pulse_per_mm;
+    if (current_position > MAX_CURRENT_POS || current_position < MIN_CURRENT_POS)
+    {
+        clear_buffer_data();
+    }
     return current_position;
 }
 
 float Encoder::getRelativePosition()
 {
     current_position = pulse_counter / pulse_per_mm;
+
+    if (current_position > MAX_CURRENT_POS || current_position < MIN_CURRENT_POS)
+    {
+        clear_buffer_data();
+    }
+
     float _offset = current_position - last_relative_position;
     last_relative_position = current_position;
     return _offset;

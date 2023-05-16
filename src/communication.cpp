@@ -165,26 +165,118 @@ void communication::send_conveyor_infor()
     }
 }
 
+void communication::send_ethernet_infor()
+{
+    String fb_string = "E_port:";
+    fb_string += String(ethernet_port) + '\n';
+    fb_string += "E_ip:";
+    fb_string += ethernet_ip.toString() + '\n';
+    fb_string += "E_dns:";
+    fb_string += ethernet_dns.toString() + '\n';
+    fb_string += "E_gateway:";
+    fb_string += ethernet_gateway.toString() + '\n';
+    fb_string += "E_subnet:";
+    fb_string += ethernet_subnet.toString() + '\n';
+    fb_string += "E_mac:";
+    fb_string += String(ethernet_mac[0]) + '.';
+    fb_string += String(ethernet_mac[1]) + '.';
+    fb_string += String(ethernet_mac[2]) + '.';
+    fb_string += String(ethernet_mac[3]) + '.';
+    fb_string += String(ethernet_mac[4]) + '.';
+    fb_string += String(ethernet_mac[5]);
+
+    if (current_cmd_port == usb_port)
+    {
+        USBPort.println(fb_string);
+    }
+    else
+    {
+        eth_client.println(fb_string);
+    }
+}
+
+void communication::send_ethernet_ip()
+{
+    String fb_string = "E_port:";
+    fb_string += String(ethernet_port) + '\n';
+    fb_string += "E_ip:";
+    fb_string += Ethernet.localIP().toString() + '\n';
+    fb_string += "E_dns:";
+    fb_string += Ethernet.dnsServerIP().toString() + '\n';
+    fb_string += "E_gateway:";
+    fb_string += Ethernet.gatewayIP().toString() + '\n';
+    fb_string += "E_subnet:";
+    fb_string += Ethernet.subnetMask().toString() + '\n';
+    fb_string += "E_mac:";
+    fb_string += String(ethernet_mac[0]) + '.';
+    fb_string += String(ethernet_mac[1]) + '.';
+    fb_string += String(ethernet_mac[2]) + '.';
+    fb_string += String(ethernet_mac[3]) + '.';
+    fb_string += String(ethernet_mac[4]) + '.';
+    fb_string += String(ethernet_mac[5]);
+    
+    if (current_cmd_port == usb_port)
+    {
+        USBPort.println(fb_string);
+    }
+    else
+    {
+        eth_client.println(fb_string);
+    }
+}
+
+void communication::send_input_a_state()
+{
+    String fb_string = "I0 V";
+    fb_string += String(encoder.getInputA());
+
+    if (current_cmd_port == usb_port)
+    {
+        USBPort.println(fb_string);
+    }
+    else
+    {
+        eth_client.println(fb_string);
+    }
+}
+
+void communication::send_input_b_state()
+{
+    String fb_string = "I1 V";
+    fb_string += String(encoder.getInputB());
+
+    if (current_cmd_port == usb_port)
+    {
+        USBPort.println(fb_string);
+    }
+    else
+    {
+        eth_client.println(fb_string);
+    }
+}
+
 void communication::init()
 {
     USBPort.begin(115200);
     USBPort.setTimeout(5);
 
+    load_eth();
+
     receive_string.reserve(100);
     is_string_complete = false;
     receive_string = "";
 
-    ethernet_port = 23;
-	ethernet_ip = IPAddress(0, 0, 0, 0);
-	ethernet_dns = IPAddress(192, 168, 1, 1);
-	ethernet_gateway = IPAddress(192, 168, 1, 1);
-	ethernet_subnet = IPAddress(255, 255, 0, 0);
-	ethernet_mac[0] = 0xDE;
-	ethernet_mac[1] = 0xAD;
-	ethernet_mac[2] = 0xBE;
-	ethernet_mac[3] = 0xEF;
-	ethernet_mac[4] = 0xFE;
-	ethernet_mac[5] = 0xED;
+    // ethernet_port = 23;
+	// ethernet_ip = IPAddress(0, 0, 0, 0);
+	// ethernet_dns = IPAddress(192, 168, 1, 1);
+	// ethernet_gateway = IPAddress(192, 168, 1, 1);
+	// ethernet_subnet = IPAddress(255, 255, 0, 0);
+	// ethernet_mac[0] = 0xDE;
+	// ethernet_mac[1] = 0xAD;
+	// ethernet_mac[2] = 0xBE;
+	// ethernet_mac[3] = 0xEF;
+	// ethernet_mac[4] = 0xFE;
+	// ethernet_mac[5] = 0xED;
 
     pinMode(ETH_RESET_PIN, OUTPUT);
     digitalWrite(ETH_RESET_PIN, 1);
@@ -265,6 +357,10 @@ void communication::execute()
     String keyValue = gcode.substring(0, 4);
     String _value1 = "";
     String _value2 = "";
+    String _value3 = "";
+    String _value4 = "";
+    String _value5 = "";
+    String _value6 = "";
 
     for (uint16_t i = 4; i < gcode.length(); i++)
     {
@@ -281,6 +377,26 @@ void communication::execute()
             else if (index_value == 1)
             {
                 _value2 = splitWord;
+                index_value++;
+            }
+            else if (index_value == 2)
+            {
+                _value3 = splitWord;
+                index_value++;
+            }
+            else if (index_value == 3)
+            {
+                _value4 = splitWord;
+                index_value++;
+            }
+            else if (index_value == 4)
+            {
+                _value5 = splitWord;
+                index_value++;
+            }
+            else if (index_value == 5)
+            {
+                _value6 = splitWord;
                 index_value++;
             }
             
@@ -422,24 +538,94 @@ void communication::execute()
             int _index = _value1.substring(1).toInt();
             if (_index == 0)
             {
-                encoder.getInputA();
+                send_input_a_state();
             }
             else if (_index == 1)
             {
-                encoder.getInputB();
+                send_input_b_state();
             }
         }
-        else if (index_value > 1 && _value1[0] == 'T')
+        else if (index_value > 0 && _value1[0] == 'T')
         {
             encoder.setInputAutoFeecback(_value1.substring(1).toInt());
             send_done();
         }
-        else if (index_value > 1 && _value1[0] == 'S')
+        else if (index_value > 0 && _value1[0] == 'S')
         {
             encoder.setStopInputAutoFeecback(_value1.substring(1).toInt());
             send_done();
         }
 
+    }
+
+    // eth setting
+    else if (keyValue == "M390")
+    {
+        if (index_value > 0)
+        {
+            ethernet_port = _value1.toInt();
+            send_done();
+        }
+    }
+    else if (keyValue == "M391")
+    {
+        if (index_value > 2)
+        {
+            ethernet_ip = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            send_done();
+        }
+    }
+    else if (keyValue == "M392")
+    {
+        if (index_value > 2)
+        {
+            ethernet_dns = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            send_done();
+        }
+    }
+    else if (keyValue == "M393")
+    {
+        if (index_value > 2)
+        {
+            ethernet_gateway = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            send_done();
+        }
+    }
+    else if (keyValue == "M394")
+    {
+        if (index_value > 2)
+        {
+            ethernet_subnet = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            send_done();
+        }
+    }
+    else if (keyValue == "M395")
+    {
+        if (index_value > 4)
+        {
+            ethernet_mac[0] = _value1.toInt();
+            ethernet_mac[1] = _value2.toInt();
+            ethernet_mac[2] = _value3.toInt();
+            ethernet_mac[3] = _value4.toInt();
+            ethernet_mac[4] = _value5.toInt();
+            ethernet_mac[5] = _value6.toInt();
+
+            send_done();
+        }
+    }
+    else if (keyValue == "M396")
+    {
+        save_eth();
+        init_eth();
+        send_done();
+    }
+    else if (keyValue == "M397")
+    {
+        send_ethernet_infor();
+    }
+    else if (keyValue == "M398")
+    {
+        send_ethernet_ip();
     }
 
     gcode = "";

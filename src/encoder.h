@@ -22,6 +22,9 @@
 #define CHANNEL_A 0
 #define CHANNEL_B 1
 
+#define MAX_CURRENT_POS 999999.99
+#define MIN_CURRENT_POS -999999.99
+
 #define MAX_
 
 typedef enum
