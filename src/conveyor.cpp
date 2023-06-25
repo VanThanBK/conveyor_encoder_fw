@@ -46,6 +46,8 @@ void Conveyor::save_data()
     EEPROM.update(IS_CONVEYOR_MODE_ADDRESS, conveyor_mode);
     putFloatToEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     EEPROM.update(IS_RUN_WITH_ENCODER_ADDRESS, is_run_with_encoder);
+
+    putFloatToEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
 }
 
 void Conveyor::load_data()
@@ -54,6 +56,8 @@ void Conveyor::load_data()
     conveyor_mode = (CONVEYOR_MODE)EEPROM.read(IS_CONVEYOR_MODE_ADDRESS);
     getFloatFromEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     is_run_with_encoder = (bool)EEPROM.read(IS_RUN_WITH_ENCODER_ADDRESS);
+
+    getFloatFromEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
 }
 
 void Conveyor::save_auto_run_data()
@@ -303,6 +307,7 @@ void Conveyor::stopPosition()
 void Conveyor::setAccel(float _accel)
 {
     current_accel = _accel;
+    save_data();
 }
 
 void Conveyor::setOutput(uint8 _pin, uint8 _value)

@@ -83,6 +83,8 @@ public:
     bool getInputA();
     bool getInputB();
 
+    void resetCounter();
+
     void setInputAutoFeecback(uint8_t index);
     void setStopInputAutoFeecback(uint8_t index);
 

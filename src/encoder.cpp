@@ -375,6 +375,13 @@ bool Encoder::getInputB()
     return b_input_state;
 }
 
+void Encoder::resetCounter()
+{
+    pulse_counter = 0;
+    last_relative_position = 0;
+    current_position = 0;
+}
+
 void Encoder::setInputAutoFeecback(uint8_t index)
 {
     if (index == 0)

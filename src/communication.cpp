@@ -284,6 +284,8 @@ void communication::init()
 
     pinMode(LED_RUN_PIN, OUTPUT);
     digitalWrite(LED_RUN_PIN, 0);
+
+    pinMode(LED_FUNC_PIN, OUTPUT);
 }
 
 void communication::execute()
@@ -331,6 +333,7 @@ void communication::execute()
         receive_string = "";
         is_string_complete = false;
         current_cmd_port = usb_port;
+        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
     }
     else if (is_eth_string_complete)
     {
@@ -338,6 +341,7 @@ void communication::execute()
         eth_receive_string = "";
         is_eth_string_complete = false;
         current_cmd_port = eth_port;
+        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
     }
     else
     {
@@ -346,6 +350,19 @@ void communication::execute()
 
     if (gcode == "")
     {
+        return;
+    }
+
+    if (gcode == "IsXConveyor")
+    {
+        USBPort.println("YesXConveyor");
+        gcode = "";
+        return;
+    }
+    else if (gcode == "IsXEncoder")
+    {
+        USBPort.println("YesXEncoder");
+        gcode = "";
         return;
     }
         
@@ -496,7 +513,7 @@ void communication::execute()
         }
         else if (index_value > 0 && _value1[0] == 'R')
         {
-            
+            encoder.resetCounter();
             send_done();
         }
         else if (index_value == 0)
