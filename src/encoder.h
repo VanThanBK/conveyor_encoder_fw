@@ -26,6 +26,7 @@
 #define MIN_CURRENT_POS -999999.99
 
 #define MAX_
+#define TIMER_PERIOD_FEEDBACK 2000
 
 typedef enum
 {
@@ -53,6 +54,8 @@ private:
     
     bool is_auto_feedback_a;
     bool is_auto_feedback_b;
+
+    long last_time_auto_feedback;
 
     void pinInit();
     void attachInterruptEncoderPin();
@@ -87,6 +90,8 @@ public:
 
     void setInputAutoFeecback(uint8_t index);
     void setStopInputAutoFeecback(uint8_t index);
+
+    void execute();
 
     uint8_t encoder_scale;
     float pulse_per_mm;

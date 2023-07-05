@@ -94,20 +94,6 @@ void Encoder::__encoder_handle(uint8_t _channel)
             b_input_state = digitalRead(b_pin_encoder);
         }
 
-        if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
-        {
-            String _mes = "I0 V" + String(a_input_state);
-            control_port.response(_mes);
-            a_input_state_last = a_input_state;
-        }
-
-        if (b_input_state != b_input_state_last && is_auto_feedback_b == true)
-        {
-            String _mes = "I1 V" + String(b_input_state);
-            control_port.response(_mes);
-            b_input_state_last = b_input_state;
-        }
-
         return;
     }
 
@@ -403,6 +389,33 @@ void Encoder::setStopInputAutoFeecback(uint8_t index)
     else
     {
         is_auto_feedback_b = false;
+    }
+}
+
+void Encoder::execute()
+{
+    if (encoder_mode == AS_INPUT_PIN)
+    {
+        if (micros() - last_time_auto_feedback < TIMER_PERIOD_FEEDBACK)
+        {
+            return;
+        }
+        
+        last_time_auto_feedback = micros();
+
+        if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
+        {
+            String _mes = "I0 V" + String(a_input_state);
+            control_port.response(_mes);
+            a_input_state_last = a_input_state;
+        }
+
+        if (b_input_state != b_input_state_last && is_auto_feedback_b == true)
+        {
+            String _mes = "I1 V" + String(b_input_state);
+            control_port.response(_mes);
+            b_input_state_last = b_input_state;
+        }
     }
 }
 

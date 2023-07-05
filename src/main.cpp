@@ -29,4 +29,5 @@ void setup() {
 
 void loop() {
   control_port.execute();
+  encoder.execute();
 }
