@@ -10,6 +10,7 @@
 #include <EEPROM.h>
 #include "pin.h"
 #include "communication.h"
+#include "conveyor.h"
 
 #define AutoFeedbackTimer Timer2
 
@@ -33,7 +34,15 @@ typedef enum
     ABSOLUTE = 0,
     RELATIVE,
     AS_INPUT_PIN,
+    AS_BUTTON,
 } ENCODER_MODE;
+
+typedef enum
+{
+    RELEASE = 0,
+    PRESS,
+    HOLDING,
+} BUTTON_TYPE;
 
 class Encoder
 {
@@ -67,6 +76,9 @@ private:
     void load_data();
 
     void clear_buffer_data();
+
+    long last_time_button_start;
+    long last_time_button_stop;
 public:
     void init();
     void __encoder_handle(uint8_t _channel);
@@ -98,6 +110,9 @@ public:
     ENCODER_MODE encoder_mode;
     bool reverse_encoder;
     uint16 time_auto_feedback;
+
+    BUTTON_TYPE button_start;
+    BUTTON_TYPE button_stop;
 };
 
 extern Encoder encoder;

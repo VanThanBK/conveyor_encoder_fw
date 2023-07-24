@@ -83,6 +83,11 @@ public:
 
     void setOutput(uint8 _pin, uint8 _value);
 
+    void startFromButton();
+    void stopFromButton();
+    void increaseSpeedFromButton();
+    void decreaseSpeedFromButton();
+
     float pulse_per_mm;
     bool reverse_conveyor;
     CONVEYOR_MODE conveyor_mode;

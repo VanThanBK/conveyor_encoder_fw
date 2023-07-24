@@ -289,6 +289,15 @@ void Conveyor::setVelocity(float _speed)
         return;
     }
 
+    if (_speed < 0)
+    {
+        digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
+    }
+    else
+    {
+        digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+    }
+
     execute_speed(_speed);
 }
 
@@ -327,6 +336,42 @@ void Conveyor::setOutput(uint8 _pin, uint8 _value)
     {    
         digitalWrite(MOTOR_EN_PIN, _value);
     }
+}
+
+void Conveyor::startFromButton()
+{
+    if (conveyor_mode != CONVEYOR_VEL_INPUT)
+    {
+        return;
+    }
+    setVelocity(100);
+}
+
+void Conveyor::stopFromButton()
+{
+    if (conveyor_mode != CONVEYOR_VEL_INPUT)
+    {
+        return;
+    }
+    setVelocity(0);
+}
+
+void Conveyor::increaseSpeedFromButton()
+{
+    if (conveyor_mode != CONVEYOR_VEL_INPUT)
+    {
+        return;
+    }
+    setVelocity(desire_speed + 10);
+}
+
+void Conveyor::decreaseSpeedFromButton()
+{
+    if (conveyor_mode != CONVEYOR_VEL_INPUT)
+    {
+        return;
+    }
+    setVelocity(desire_speed - 10);
 }
 
 Conveyor conveyor;
