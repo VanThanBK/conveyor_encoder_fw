@@ -423,26 +423,30 @@ void Encoder::execute()
             button_start = RELEASE;
             last_time_button_start = millis();
         }
-        else if (millis() - last_time_button_start > 3000 && button_start == PRESS) {
+        else if (millis() - last_time_button_start > 2000 && button_start == PRESS) {
             button_start = HOLDING;
             conveyor.startFromButton();
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
-        else if (millis() - last_time_button_start > 200 && button_start == RELEASE) {
+        else if (millis() - last_time_button_start > 150 && button_start == RELEASE) {
             button_start = PRESS;
             conveyor.increaseSpeedFromButton();
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
 
         if (b_input_state == false) {
             button_stop = RELEASE;
             last_time_button_stop = millis();
         }
-        else if (millis() - last_time_button_stop > 3000 && button_stop == PRESS) {
+        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS) {
             button_stop = HOLDING;
             conveyor.stopFromButton();
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
-        else if (millis() - last_time_button_stop > 200 && button_stop == RELEASE) {
+        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE) {
             button_stop = PRESS;
             conveyor.decreaseSpeedFromButton();
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         } 
     }
 }

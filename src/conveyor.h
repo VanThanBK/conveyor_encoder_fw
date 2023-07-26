@@ -45,6 +45,8 @@ private:
     uint32 pulse_counter;
     uint32 total_pulse;
 
+    float speed_when_run_with_button;
+
     void pinInit();
     void timerInit();
 
@@ -87,6 +89,7 @@ public:
     void stopFromButton();
     void increaseSpeedFromButton();
     void decreaseSpeedFromButton();
+    void setVelocityButton(float _speed);
 
     float pulse_per_mm;
     bool reverse_conveyor;
@@ -95,6 +98,8 @@ public:
 
     bool is_auto_run_speed;
     float auto_run_speed;
+
+    float current_vel_button;
 };
 
 extern Conveyor conveyor;

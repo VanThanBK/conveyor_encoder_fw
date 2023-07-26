@@ -48,6 +48,8 @@ void Conveyor::save_data()
     EEPROM.update(IS_RUN_WITH_ENCODER_ADDRESS, is_run_with_encoder);
 
     putFloatToEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
+
+    putFloatToEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
 void Conveyor::load_data()
@@ -58,6 +60,8 @@ void Conveyor::load_data()
     is_run_with_encoder = (bool)EEPROM.read(IS_RUN_WITH_ENCODER_ADDRESS);
 
     getFloatFromEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
+
+    getFloatFromEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
 void Conveyor::save_auto_run_data()
@@ -175,6 +179,7 @@ void Conveyor::init()
     current_position = 0;
     current_accel = 0;
     min_speed = 2;
+    current_vel_button = 0;
     load_data();
     load_auto_run_data();
     pinInit();
@@ -198,7 +203,7 @@ void Conveyor::__timer_handle()
         __execute_vel();
         break;
     case CONVEYOR_VEL_INPUT:
-        /* code */
+        __execute_vel();
         break;
     default:
         break;
@@ -344,7 +349,8 @@ void Conveyor::startFromButton()
     {
         return;
     }
-    setVelocity(100);
+    current_vel_button = speed_when_run_with_button;
+    setVelocity(current_vel_button);
 }
 
 void Conveyor::stopFromButton()
@@ -353,7 +359,8 @@ void Conveyor::stopFromButton()
     {
         return;
     }
-    setVelocity(0);
+    current_vel_button = 0;
+    setVelocity(current_vel_button);
 }
 
 void Conveyor::increaseSpeedFromButton()
@@ -362,7 +369,8 @@ void Conveyor::increaseSpeedFromButton()
     {
         return;
     }
-    setVelocity(desire_speed + 10);
+    current_vel_button += 10;
+    setVelocity(current_vel_button);
 }
 
 void Conveyor::decreaseSpeedFromButton()
@@ -371,7 +379,13 @@ void Conveyor::decreaseSpeedFromButton()
     {
         return;
     }
-    setVelocity(desire_speed - 10);
+    current_vel_button -= 10;
+    setVelocity(current_vel_button);
+}
+
+void Conveyor::setVelocityButton(float _speed)
+{
+    speed_when_run_with_button = _speed;
 }
 
 Conveyor conveyor;
