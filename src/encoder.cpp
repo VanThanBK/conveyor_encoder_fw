@@ -37,6 +37,8 @@ void Encoder::init()
 
     a_input_state = digitalRead(a_pin_encoder);
     b_input_state = digitalRead(b_pin_encoder);
+
+    pulse_counter = 0;
 }
 
 void Encoder::pinInit()
@@ -64,13 +66,15 @@ void Encoder::attachInterruptEncoderPin()
     if (encoder_scale == SCALE_X1)
     {
         // attach interrupt a channel encoder
-        attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, FALLING);
+        attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, RISING);
     }
     else if (encoder_scale == SCALE_X2)
     {
         // attach interrupt a channel encoder
 
-        attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, RISING);
+        attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), interrupt_channel_b_handel, RISING);
+        
     }
     else if (encoder_scale == SCALE_X4)
     {
@@ -120,17 +124,6 @@ void Encoder::__encoder_handle(uint8_t _channel)
 
     if (encoder_scale == SCALE_X1)
     {
-        if (digitalRead(_secondary_pin))
-        {
-            pulse_counter += _offset;
-        }
-        else
-        {
-            pulse_counter -= _offset;
-        }
-    }
-    else if (encoder_scale == SCALE_X2)
-    {
         if (digitalRead(_main_pin))
         {
             if (digitalRead(_secondary_pin))
@@ -142,23 +135,51 @@ void Encoder::__encoder_handle(uint8_t _channel)
                 pulse_counter -= _offset;
             }
         }
-        else
+    }
+    else if (encoder_scale == SCALE_X2)
+    {
+        if (digitalRead(_main_pin))
         {
-            if (digitalRead(_secondary_pin))
+            if (_channel == CHANNEL_A)
             {
-                pulse_counter -= _offset;
+                if (digitalRead(_secondary_pin))
+                {
+                    pulse_counter += _offset;
+                }
+                else
+                {
+                    pulse_counter -= _offset;
+                }
             }
             else
             {
-                pulse_counter += _offset;
+                if (digitalRead(_secondary_pin))
+                {
+                    pulse_counter -= _offset;
+                }
+                else
+                {
+                    pulse_counter += _offset;
+                }
             }
         }
+        // else
+        // {
+        //     if (digitalRead(_secondary_pin))
+        //     {
+        //         pulse_counter -= _offset;
+        //     }
+        //     else
+        //     {
+        //         pulse_counter += _offset;
+        //     }
+        // }
     }
     else if (encoder_scale == SCALE_X4)
     {
-        if (_channel == CHANNEL_A)
+        if (digitalRead(_main_pin))
         {
-            if (digitalRead(_main_pin))
+            if (_channel == CHANNEL_A)
             {
                 if (digitalRead(_secondary_pin))
                 {
@@ -183,26 +204,26 @@ void Encoder::__encoder_handle(uint8_t _channel)
         }
         else
         {
-            if (digitalRead(_main_pin))
+            if (_channel == CHANNEL_B)
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter -= _offset;
+                    pulse_counter += _offset;
                 }
                 else
                 {
-                    pulse_counter += _offset;
+                    pulse_counter -= _offset;
                 }
             }
             else
             {
                 if (digitalRead(_secondary_pin))
                 {
-                    pulse_counter += _offset;
+                    pulse_counter -= _offset;
                 }
                 else
                 {
-                    pulse_counter -= _offset;
+                    pulse_counter += _offset;
                 }
             }
         }
