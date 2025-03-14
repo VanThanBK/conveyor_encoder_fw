@@ -28,12 +28,10 @@ void Encoder::init()
     pinInit();
     attachInterruptEncoderPin();
 
-    AutoFeedbackTimer.setPeriod(24);
-    AutoFeedbackTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    AutoFeedbackTimer.setCompare(TIMER_CH1, 1);
-    AutoFeedbackTimer.pause();
+    AutoFeedbackTimer = new HardwareTimer(AUTO_FEEDBACK_TIMER);
+    conveyor.setTimerPeriod(AutoFeedbackTimer, 24);
 
-    AutoFeedbackTimer.attachInterrupt(TIMER_CH1, interrupt_auto_timer_handle);
+    AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
 
     a_input_state = digitalRead(a_pin_encoder);
     b_input_state = digitalRead(b_pin_encoder);
@@ -74,7 +72,6 @@ void Encoder::attachInterruptEncoderPin()
 
         attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, RISING);
         attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), interrupt_channel_b_handel, RISING);
-        
     }
     else if (encoder_scale == SCALE_X4)
     {
@@ -116,7 +113,7 @@ void Encoder::__encoder_handle(uint8_t _channel)
         _secondary_pin = a_pin_encoder;
     }
 
-    int8 _offset = 1;
+    int8_t _offset = 1;
     if (reverse_encoder)
     {
         _offset = -1;
@@ -273,33 +270,34 @@ void Encoder::setReverseEncoder(bool _dir)
     save_data();
 }
 
-void Encoder::setTimeAutoFeedback(uint16 _time)
+void Encoder::setTimeAutoFeedback(uint16_t _time)
 {
     if (_time < 50)
     {
         _time = 0;
         time_auto_feedback = _time;
-        AutoFeedbackTimer.pause();
+        AutoFeedbackTimer->pause();
         return;
     }
     time_auto_feedback = _time;
-    AutoFeedbackTimer.setPeriod(_time * 1000);
-    AutoFeedbackTimer.resume();
+    // AutoFeedbackTimer->setPeriod(_time * 1000);
+    conveyor.setTimerPeriod(AutoFeedbackTimer, _time);
+    AutoFeedbackTimer->resume();
 }
 
 // func eeprom -------------------------------------------------------------
-void Encoder::putFloatToEeprom(uint16 address, float floatout)
+void Encoder::putFloatToEeprom(uint16_t address, float floatout)
 {
-    uint16 floatH = floatout / 1;
-    uint16 floatL = (floatout - (float)floatH) * 1000;
+    uint16_t floatH = floatout / 1;
+    uint16_t floatL = (floatout - (float)floatH) * 1000;
     EEPROM.update(address, floatH);
     EEPROM.update(address + 1, floatL);
 }
 
-void Encoder::getFloatFromEeprom(uint16 address, float &floatin)
+void Encoder::getFloatFromEeprom(uint16_t address, float &floatin)
 {
-    uint16 floatH = EEPROM.read(address);
-    uint16 floatL = EEPROM.read(address + 1);
+    uint16_t floatH = EEPROM.read(address);
+    uint16_t floatL = EEPROM.read(address + 1);
     floatin = (float)floatH + (float)floatL / 1000;
 }
 void Encoder::save_data()
@@ -421,7 +419,7 @@ void Encoder::execute()
         {
             return;
         }
-        
+
         last_time_auto_feedback = micros();
 
         if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
@@ -440,35 +438,45 @@ void Encoder::execute()
     }
     else if (encoder_mode == AS_BUTTON)
     {
-        if (a_input_state == false) {
+        if (a_input_state == false)
+        {
             button_start = RELEASE;
             last_time_button_start = millis();
         }
-        else if (millis() - last_time_button_start > 2000 && button_start == PRESS) {
+        else if (millis() - last_time_button_start > 2000 && button_start == PRESS)
+        {
             button_start = HOLDING;
             conveyor.startFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+            control_port.func_led_state = !control_port.func_led_state;
+            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
         }
-        else if (millis() - last_time_button_start > 150 && button_start == RELEASE) {
+        else if (millis() - last_time_button_start > 150 && button_start == RELEASE)
+        {
             button_start = PRESS;
             conveyor.increaseSpeedFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+            control_port.func_led_state = !control_port.func_led_state;
+            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
         }
 
-        if (b_input_state == false) {
+        if (b_input_state == false)
+        {
             button_stop = RELEASE;
             last_time_button_stop = millis();
         }
-        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS) {
+        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS)
+        {
             button_stop = HOLDING;
             conveyor.stopFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+            control_port.func_led_state = !control_port.func_led_state;
+            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
         }
-        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE) {
+        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE)
+        {
             button_stop = PRESS;
             conveyor.decreaseSpeedFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
-        } 
+            control_port.func_led_state = !control_port.func_led_state;
+            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
+        }
     }
 }
 

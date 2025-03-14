@@ -13,30 +13,27 @@ void Conveyor::pinInit()
 
 void Conveyor::timerInit()
 {
-    TurnPinTimer.setPeriod(800000);
-    ExecuteStepTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    ExecuteStepTimer.setCompare(TIMER_CH1, 1);
-    ExecuteStepTimer.pause();
+    TurnPinTimer = new HardwareTimer(TIM4);
+    ExecuteStepTimer = new HardwareTimer(TIM3);
 
-    TurnPinTimer.setPeriod(24);
-    TurnPinTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    TurnPinTimer.setCompare(TIMER_CH1, 1);
-    TurnPinTimer.pause();
+    setTimerPeriod(ExecuteStepTimer, 1000);
+    setTimerPeriod(TurnPinTimer, 24);
+
 }
 
 // func eeprom -------------------------------------------------------------
-void Conveyor::putFloatToEeprom(uint16 address, float floatout)
+void Conveyor::putFloatToEeprom(uint16_t address, float floatout)
 {
-    uint16 floatH = floatout / 1;
-    uint16 floatL = (floatout - (float)floatH) * 1000;
+    uint16_t floatH = floatout / 1;
+    uint16_t floatL = (floatout - (float)floatH) * 1000;
     EEPROM.update(address, floatH);
     EEPROM.update(address + 1, floatL);
 }
 
-void Conveyor::getFloatFromEeprom(uint16 address, float &floatin)
+void Conveyor::getFloatFromEeprom(uint16_t address, float &floatin)
 {
-    uint16 floatH = EEPROM.read(address);
-    uint16 floatL = EEPROM.read(address + 1);
+    uint16_t floatH = EEPROM.read(address);
+    uint16_t floatL = EEPROM.read(address + 1);
     floatin = (float)floatH + (float)floatL / 1000;
 }
 
@@ -80,7 +77,7 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
 {
     if (_speed == 0)
     {
-        ExecuteStepTimer.pause();
+        ExecuteStepTimer->pause();
         return;
     }
     current_period = 1000000.0 / (_speed * pulse_per_mm);
@@ -88,7 +85,7 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
     {
         current_period = MIN_STEP_TIMER_PERIOD;
     }
-    ExecuteStepTimer.setPeriod(current_period);
+    setTimerPeriod(ExecuteStepTimer, current_period);
 }
 
 void Conveyor::__execute_vel()
@@ -123,7 +120,7 @@ void Conveyor::__execute_pos()
     {
         pulse_for_accel = pulse_counter;
     }
-    else if ((pulse_counter >= (uint16)(total_pulse / 2)) && pulse_for_accel == 0)
+    else if ((pulse_counter >= (uint16_t)(total_pulse / 2)) && pulse_for_accel == 0)
     {
         pulse_for_accel = int(total_pulse / 2);
     }
@@ -138,7 +135,7 @@ void Conveyor::__execute_pos()
         // setVelocity(0);
         current_position = desire_position;
         pulse_counter = 0;
-        ExecuteStepTimer.pause();
+        ExecuteStepTimer->pause();
         control_port.send_done();
     }
 }
@@ -170,7 +167,7 @@ void Conveyor::execute_speed(float _speed)
         }
         time_count = 0;
         setTimerPeriodFromSpeed(current_speed);
-        ExecuteStepTimer.resume();
+        ExecuteStepTimer->resume();
     }
 }
 
@@ -189,7 +186,7 @@ void Conveyor::init()
 void Conveyor::__timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, LOW);
-    TurnPinTimer.resume();
+    TurnPinTimer->resume();
 
     switch (conveyor_mode)
     {
@@ -223,8 +220,8 @@ void Conveyor::setConveyorMode(uint8_t _enable)
     }
     conveyor_mode = (CONVEYOR_MODE)_enable;
 
-    ExecuteStepTimer.pause();
-    TurnPinTimer.pause();
+    ExecuteStepTimer->pause();
+    TurnPinTimer->pause();
 
     digitalWrite(MOTOR_EN_PIN, HIGH);
 
@@ -315,7 +312,7 @@ void Conveyor::stopPosition()
 {
     current_speed = 0;
     current_position += (pulse_counter / pulse_per_mm) * (desire_position - current_position) / abs(desire_position - current_position);
-    ExecuteStepTimer.pause();
+    ExecuteStepTimer->pause();
 }
 
 void Conveyor::setAccel(float _accel)
@@ -324,7 +321,7 @@ void Conveyor::setAccel(float _accel)
     save_data();
 }
 
-void Conveyor::setOutput(uint8 _pin, uint8 _value)
+void Conveyor::setOutput(uint8_t _pin, uint8_t _value)
 {
     if (conveyor_mode != OUTPUT_PIN)
         return;
@@ -386,6 +383,18 @@ void Conveyor::decreaseSpeedFromButton()
 void Conveyor::setVelocityButton(float _speed)
 {
     speed_when_run_with_button = _speed;
+}
+
+void Conveyor::setTimerPeriod(HardwareTimer *timer, uint32_t _period)
+{
+    timer->pause();
+    timer->setMode(1, TIMER_OUTPUT_COMPARE);
+    timer->setPrescaleFactor(timer->getTimerClkFreq() / 1000000);
+    timer->setOverflow(_period);
+    timer->setPreloadEnable(false);
+
+    // timer->pause();
+    // timer->setPeriod(_period);
 }
 
 Conveyor conveyor;

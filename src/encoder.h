@@ -11,8 +11,7 @@
 #include "pin.h"
 #include "communication.h"
 #include "conveyor.h"
-
-#define AutoFeedbackTimer Timer2
+#define AUTO_FEEDBACK_TIMER TIM2
 
 //scale of encoder pulse
 #define SCALE_X1 1
@@ -69,8 +68,8 @@ private:
     void pinInit();
     void attachInterruptEncoderPin();
 
-    void putFloatToEeprom(uint16 address, float floatout);
-    void getFloatFromEeprom(uint16 address, float &floatin);
+    void putFloatToEeprom(uint16_t address, float floatout);
+    void getFloatFromEeprom(uint16_t address, float &floatin);
 
     void save_data();
     void load_data();
@@ -88,7 +87,7 @@ public:
     void setPulsePerMm(float _pulse);
     void setEncoderScale(uint8_t _scale);
     void setReverseEncoder(bool _dir);
-    void setTimeAutoFeedback(uint16 _time);
+    void setTimeAutoFeedback(uint16_t _time);
 
     int32_t getEncoderPulse();
     int32_t getRelativeEncoderPulse();
@@ -109,10 +108,12 @@ public:
     float pulse_per_mm;
     ENCODER_MODE encoder_mode;
     bool reverse_encoder;
-    uint16 time_auto_feedback;
+    uint16_t time_auto_feedback;
 
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;
+
+    HardwareTimer *AutoFeedbackTimer;
 };
 
 extern Encoder encoder;

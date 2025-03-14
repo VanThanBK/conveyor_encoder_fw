@@ -7,15 +7,20 @@
 	#include "WProgram.h"
 #endif
 
-#define ExecuteStepTimer Timer3
-#define TurnPinTimer Timer4
-
 #define TIME_ISR_ACCEL 2000
 #define MIN_STEP_TIMER_PERIOD 50
 
 #include <EEPROM.h>
 #include "pin.h"
 #include "communication.h"
+#include "HardwareTimer.h"
+
+#define EXECUTE_STEP_TIMER TIM3
+#define TURN_PIN_TIMER TIM4
+
+#define DEFAULT_ACCEL 1000
+#define DEFAULT_SPEED 50
+
 
 typedef enum
 {
@@ -39,19 +44,19 @@ private:
     float desire_speed;
     float desire_speed_pos;
 
-    uint32 pulse_for_accel;
-    uint32 time_count;
-    uint32 current_period;
-    uint32 pulse_counter;
-    uint32 total_pulse;
+    uint32_t pulse_for_accel;
+    uint32_t time_count;
+    uint32_t current_period;
+    uint32_t pulse_counter;
+    uint32_t total_pulse;
 
     float speed_when_run_with_button;
 
     void pinInit();
     void timerInit();
 
-    void putFloatToEeprom(uint16 address, float floatout);
-    void getFloatFromEeprom(uint16 address, float &floatin);
+    void putFloatToEeprom(uint16_t address, float floatout);
+    void getFloatFromEeprom(uint16_t address, float &floatin);
 
     void save_data();
     void load_data();
@@ -83,7 +88,7 @@ public:
 
     void setAccel(float _accel);
 
-    void setOutput(uint8 _pin, uint8 _value);
+    void setOutput(uint8_t _pin, uint8_t _value);
 
     void startFromButton();
     void stopFromButton();
@@ -100,6 +105,10 @@ public:
     float auto_run_speed;
 
     float current_vel_button;
+    HardwareTimer *ExecuteStepTimer;
+    HardwareTimer *TurnPinTimer;
+
+    void setTimerPeriod(HardwareTimer *timer , uint32_t _period);
 };
 
 extern Conveyor conveyor;

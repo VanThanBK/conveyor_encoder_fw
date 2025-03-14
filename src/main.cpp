@@ -3,7 +3,6 @@
 #include "encoder.h"
 #include "conveyor.h"
 #include "communication.h"
-// #include <Ethernet_STM.h>
 
 // func interrupt for encoder
 void interrupt_timer_handle()
@@ -16,15 +15,17 @@ void interrupt_tp_timer_handle()
 }
 
 void setup() {
-  disableDebugPorts();
+  // disableDebugPorts();
   Serial.end();
-  
+  Serial2.end();
+  // Serial3.end();
+
+  control_port.init();
   encoder.init();
   conveyor.init();
-  control_port.init();
 
-  ExecuteStepTimer.attachInterrupt(TIMER_CH1, interrupt_timer_handle);
-  TurnPinTimer.attachInterrupt(TIMER_CH1, interrupt_tp_timer_handle);
+  conveyor.ExecuteStepTimer->attachInterrupt(1, interrupt_timer_handle);
+  conveyor.TurnPinTimer->attachInterrupt(1, interrupt_tp_timer_handle);
 }
 
 void loop() {

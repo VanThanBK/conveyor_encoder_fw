@@ -2,97 +2,112 @@
 
 void communication::init_eth()
 {
+    SPI.setBitOrder(MSBFIRST);
+    SPI.setDataMode(SPI_MODE0);
+    Ethernet.init(PIN_SPI_SS);
     eth_server = new EthernetServer(ethernet_port);
 
-    if (ethernet_ip[0] == 0 && ethernet_ip[1] == 0 && ethernet_ip[2] == 0 && ethernet_ip[3] == 0)
+    ethernet_mac[0] = 0xDE;
+    ethernet_mac[1] = 0xAD;
+    ethernet_mac[2] = 0xBE;
+    ethernet_mac[3] = 0xEF;
+    ethernet_mac[4] = 0xFE;
+    ethernet_mac[5] = 0x12;
+
+    if (Ethernet.begin(ethernet_mac) == 0)
     {
-        Ethernet.begin(ethernet_mac);
-    }
-    else
-    {
+        USBPort.println("Failed to configure Ethernet using DHCP");
+
+        if (Ethernet.linkStatus() == LinkOFF)
+        {
+            USBPort.println("LinkOFF:Ethernet cable is not connected!");
+        }
+        if (Ethernet.linkStatus() == Unknown)
+        {
+            USBPort.println("Unknown:Ethernet cable is not connected!");
+        }
+        if (Ethernet.hardwareStatus() == EthernetNoHardware)
+        {
+            USBPort.println("Unknown:Ethernet hardware error!");
+        }
+
         Ethernet.begin(ethernet_mac, ethernet_ip, ethernet_dns, ethernet_gateway, ethernet_subnet);
     }
-    
-	// if (Ethernet.hardwareStatus() == EthernetNoHardware)
-	// {
-	// 	ethernet_infor = "Unknown:Ethernet hardware error!";
-	// }
 
-	// if (Ethernet.linkStatus() == LinkOFF)
-	// {
-	// 	ethernet_infor = "Unknown:Ethernet cable is not connected!";
-	// }
+    // USBPort.print("IP address: ");
+    // USBPort.println(Ethernet.localIP());
 
-	// USB_PORT.println(Ethernet.localIP());
-	eth_server->begin();
-    ethernet_infor = "Ethernet init success!";
-
-	Ethernet.maintain();
+    eth_server->begin();
+    delay(1);
+    // Ethernet.maintain();
+    // delay(1);
 }
 
 void communication::save_eth()
 {
+    EEPROM.update(IS_ETH_ENABLE_ADDRESS, is_eth_enable);
     EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port);
 
     EEPROM.update(ETHERNET_IP_ADDRESS, ethernet_ip[0]);
-    EEPROM.update(ETHERNET_IP_ADDRESS+1, ethernet_ip[1]);
-    EEPROM.update(ETHERNET_IP_ADDRESS+2, ethernet_ip[2]);
-    EEPROM.update(ETHERNET_IP_ADDRESS+3, ethernet_ip[3]);
+    EEPROM.update(ETHERNET_IP_ADDRESS + 1, ethernet_ip[1]);
+    EEPROM.update(ETHERNET_IP_ADDRESS + 2, ethernet_ip[2]);
+    EEPROM.update(ETHERNET_IP_ADDRESS + 3, ethernet_ip[3]);
 
     EEPROM.update(ETHERNET_DNS_ADDRESS, ethernet_dns[0]);
-    EEPROM.update(ETHERNET_DNS_ADDRESS+1, ethernet_dns[1]);
-    EEPROM.update(ETHERNET_DNS_ADDRESS+2, ethernet_dns[2]);
-    EEPROM.update(ETHERNET_DNS_ADDRESS+3, ethernet_dns[3]);
+    EEPROM.update(ETHERNET_DNS_ADDRESS + 1, ethernet_dns[1]);
+    EEPROM.update(ETHERNET_DNS_ADDRESS + 2, ethernet_dns[2]);
+    EEPROM.update(ETHERNET_DNS_ADDRESS + 3, ethernet_dns[3]);
 
     EEPROM.update(ETHERNET_GATEWAY_ADDRESS, ethernet_gateway[0]);
-    EEPROM.update(ETHERNET_GATEWAY_ADDRESS+1, ethernet_gateway[1]);
-    EEPROM.update(ETHERNET_GATEWAY_ADDRESS+2, ethernet_gateway[2]);
-    EEPROM.update(ETHERNET_GATEWAY_ADDRESS+3, ethernet_gateway[3]);
+    EEPROM.update(ETHERNET_GATEWAY_ADDRESS + 1, ethernet_gateway[1]);
+    EEPROM.update(ETHERNET_GATEWAY_ADDRESS + 2, ethernet_gateway[2]);
+    EEPROM.update(ETHERNET_GATEWAY_ADDRESS + 3, ethernet_gateway[3]);
 
     EEPROM.update(ETHERNET_SUBNET_ADDRESS, ethernet_subnet[0]);
-    EEPROM.update(ETHERNET_SUBNET_ADDRESS+1, ethernet_subnet[1]);
-    EEPROM.update(ETHERNET_SUBNET_ADDRESS+2, ethernet_subnet[2]);
-    EEPROM.update(ETHERNET_SUBNET_ADDRESS+3, ethernet_subnet[3]);
+    EEPROM.update(ETHERNET_SUBNET_ADDRESS + 1, ethernet_subnet[1]);
+    EEPROM.update(ETHERNET_SUBNET_ADDRESS + 2, ethernet_subnet[2]);
+    EEPROM.update(ETHERNET_SUBNET_ADDRESS + 3, ethernet_subnet[3]);
 
     EEPROM.update(ETHERNET_MAC_ADDRESS, ethernet_mac[0]);
-    EEPROM.update(ETHERNET_MAC_ADDRESS+1, ethernet_mac[1]);
-    EEPROM.update(ETHERNET_MAC_ADDRESS+2, ethernet_mac[2]);
-    EEPROM.update(ETHERNET_MAC_ADDRESS+3, ethernet_mac[3]);
-    EEPROM.update(ETHERNET_MAC_ADDRESS+4, ethernet_mac[4]);
-    EEPROM.update(ETHERNET_MAC_ADDRESS+5, ethernet_mac[5]);
+    EEPROM.update(ETHERNET_MAC_ADDRESS + 1, ethernet_mac[1]);
+    EEPROM.update(ETHERNET_MAC_ADDRESS + 2, ethernet_mac[2]);
+    EEPROM.update(ETHERNET_MAC_ADDRESS + 3, ethernet_mac[3]);
+    EEPROM.update(ETHERNET_MAC_ADDRESS + 4, ethernet_mac[4]);
+    EEPROM.update(ETHERNET_MAC_ADDRESS + 5, ethernet_mac[5]);
     delay(1);
 }
 
 void communication::load_eth()
 {
+    is_eth_enable = EEPROM.read(IS_ETH_ENABLE_ADDRESS);
     ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS);
 
     ethernet_ip[0] = EEPROM.read(ETHERNET_IP_ADDRESS);
-    ethernet_ip[1] = EEPROM.read(ETHERNET_IP_ADDRESS+1);
-    ethernet_ip[2] = EEPROM.read(ETHERNET_IP_ADDRESS+2);
-    ethernet_ip[3] = EEPROM.read(ETHERNET_IP_ADDRESS+3);
+    ethernet_ip[1] = EEPROM.read(ETHERNET_IP_ADDRESS + 1);
+    ethernet_ip[2] = EEPROM.read(ETHERNET_IP_ADDRESS + 2);
+    ethernet_ip[3] = EEPROM.read(ETHERNET_IP_ADDRESS + 3);
 
     ethernet_dns[0] = EEPROM.read(ETHERNET_DNS_ADDRESS);
-    ethernet_dns[1] = EEPROM.read(ETHERNET_DNS_ADDRESS+1);
-    ethernet_dns[2] = EEPROM.read(ETHERNET_DNS_ADDRESS+2);
-    ethernet_dns[3] = EEPROM.read(ETHERNET_DNS_ADDRESS+3);
+    ethernet_dns[1] = EEPROM.read(ETHERNET_DNS_ADDRESS + 1);
+    ethernet_dns[2] = EEPROM.read(ETHERNET_DNS_ADDRESS + 2);
+    ethernet_dns[3] = EEPROM.read(ETHERNET_DNS_ADDRESS + 3);
 
     ethernet_gateway[0] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS);
-    ethernet_gateway[1] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS+1);
-    ethernet_gateway[2] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS+2);
-    ethernet_gateway[3] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS+3);
+    ethernet_gateway[1] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS + 1);
+    ethernet_gateway[2] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS + 2);
+    ethernet_gateway[3] = EEPROM.read(ETHERNET_GATEWAY_ADDRESS + 3);
 
     ethernet_subnet[0] = EEPROM.read(ETHERNET_SUBNET_ADDRESS);
-    ethernet_subnet[1] = EEPROM.read(ETHERNET_SUBNET_ADDRESS+1);
-    ethernet_subnet[2] = EEPROM.read(ETHERNET_SUBNET_ADDRESS+2);
-    ethernet_subnet[3] = EEPROM.read(ETHERNET_SUBNET_ADDRESS+3);
+    ethernet_subnet[1] = EEPROM.read(ETHERNET_SUBNET_ADDRESS + 1);
+    ethernet_subnet[2] = EEPROM.read(ETHERNET_SUBNET_ADDRESS + 2);
+    ethernet_subnet[3] = EEPROM.read(ETHERNET_SUBNET_ADDRESS + 3);
 
     ethernet_mac[0] = EEPROM.read(ETHERNET_MAC_ADDRESS);
-    ethernet_mac[1] = EEPROM.read(ETHERNET_MAC_ADDRESS+1);
-    ethernet_mac[2] = EEPROM.read(ETHERNET_MAC_ADDRESS+2);
-    ethernet_mac[3] = EEPROM.read(ETHERNET_MAC_ADDRESS+3);
-    ethernet_mac[4] = EEPROM.read(ETHERNET_MAC_ADDRESS+4);
-    ethernet_mac[5] = EEPROM.read(ETHERNET_MAC_ADDRESS+5);
+    ethernet_mac[1] = EEPROM.read(ETHERNET_MAC_ADDRESS + 1);
+    ethernet_mac[2] = EEPROM.read(ETHERNET_MAC_ADDRESS + 2);
+    ethernet_mac[3] = EEPROM.read(ETHERNET_MAC_ADDRESS + 3);
+    ethernet_mac[4] = EEPROM.read(ETHERNET_MAC_ADDRESS + 4);
+    ethernet_mac[5] = EEPROM.read(ETHERNET_MAC_ADDRESS + 5);
     delay(1);
 }
 
@@ -214,7 +229,7 @@ void communication::send_ethernet_ip()
     fb_string += String(ethernet_mac[3]) + '.';
     fb_string += String(ethernet_mac[4]) + '.';
     fb_string += String(ethernet_mac[5]);
-    
+
     if (current_cmd_port == usb_port)
     {
         USBPort.println(fb_string);
@@ -223,6 +238,23 @@ void communication::send_ethernet_ip()
     {
         eth_client.println(fb_string);
     }
+}
+
+void communication::reset_eth_ips()
+{
+    ethernet_port = 80;
+    ethernet_ip = IPAddress(0, 0, 0, 0);
+    ethernet_dns = IPAddress(0, 0, 0, 0);
+    ethernet_gateway = IPAddress(0, 0, 0, 0);
+    ethernet_subnet = IPAddress(0, 0, 0, 0);
+    ethernet_mac[0] = 0xDE;
+    ethernet_mac[1] = 0xAD;
+    ethernet_mac[2] = 0xBE;
+    ethernet_mac[3] = 0xEF;
+    ethernet_mac[4] = 0xFE;
+    ethernet_mac[5] = 0xED;
+    save_eth();
+    init_eth();
 }
 
 void communication::send_input_a_state()
@@ -266,24 +298,17 @@ void communication::init()
     is_string_complete = false;
     receive_string = "";
 
-    // ethernet_port = 23;
-	// ethernet_ip = IPAddress(0, 0, 0, 0);
-	// ethernet_dns = IPAddress(192, 168, 1, 1);
-	// ethernet_gateway = IPAddress(192, 168, 1, 1);
-	// ethernet_subnet = IPAddress(255, 255, 0, 0);
-	// ethernet_mac[0] = 0xDE;
-	// ethernet_mac[1] = 0xAD;
-	// ethernet_mac[2] = 0xBE;
-	// ethernet_mac[3] = 0xEF;
-	// ethernet_mac[4] = 0xFE;
-	// ethernet_mac[5] = 0xED;
-
     pinMode(ETH_RESET_PIN, OUTPUT);
+    digitalWrite(ETH_RESET_PIN, 0);
+    delay(100);
     digitalWrite(ETH_RESET_PIN, 1);
-    init_eth();
+    delay(100);
+    if (is_eth_enable) {
+        init_eth();
+    }
 
     pinMode(LED_RUN_PIN, OUTPUT);
-    digitalWrite(LED_RUN_PIN, 0);
+    digitalWrite(LED_RUN_PIN, run_led_state);
 
     pinMode(LED_FUNC_PIN, OUTPUT);
 }
@@ -333,7 +358,8 @@ void communication::execute()
         receive_string = "";
         is_string_complete = false;
         current_cmd_port = usb_port;
-        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+        func_led_state = !func_led_state;
+        digitalWrite(LED_FUNC_PIN, func_led_state);
     }
     else if (is_eth_string_complete)
     {
@@ -341,7 +367,8 @@ void communication::execute()
         eth_receive_string = "";
         is_eth_string_complete = false;
         current_cmd_port = eth_port;
-        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+        func_led_state = !func_led_state;
+        digitalWrite(LED_FUNC_PIN, func_led_state);
     }
     else
     {
@@ -355,18 +382,38 @@ void communication::execute()
 
     if (gcode == "IsXConveyor")
     {
-        USBPort.println("YesXConveyor");
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println("YesXConveyor");
+        }
+        else
+        {
+            eth_client.println("YesXConveyor");
+        }
         gcode = "";
         return;
     }
     else if (gcode == "IsXEncoder")
     {
-        USBPort.println("YesXEncoder");
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println("YesXEncoder");
+        }
+        else
+        {
+            eth_client.println("YesXEncoder");
+        }
         gcode = "";
         return;
     }
-        
-    // tach
+
+    else if (gcode == "IP")
+    {
+        send_ethernet_ip();
+        gcode = "";
+        return;
+    }
+
     String splitWord = "";
     gcode += " ";
     byte index_value = 0;
@@ -416,14 +463,14 @@ void communication::execute()
                 _value6 = splitWord;
                 index_value++;
             }
-            
+
             splitWord = "";
             continue;
         }
         splitWord += String(gcode[i]);
     }
 
-//conveyor
+    // conveyor
     if (keyValue == "M310")
     {
         // set mode
@@ -440,7 +487,6 @@ void communication::execute()
     {
         // set position
         conveyor.setPosition(_value1.toFloat());
-
     }
     else if (keyValue == "M313")
     {
@@ -502,7 +548,7 @@ void communication::execute()
         }
     }
 
-// encoder
+    // encoder
     else if (keyValue == "M316")
     {
         // set mode
@@ -549,7 +595,7 @@ void communication::execute()
             send_done();
         }
         else
-        {   
+        {
             send_encoder_infor();
         }
     }
@@ -578,10 +624,19 @@ void communication::execute()
             encoder.setStopInputAutoFeecback(_value1.substring(1).toInt());
             send_done();
         }
-
     }
 
     // eth setting
+
+    else if (keyValue == "M389") 
+    {
+        is_eth_enable = _value1.toInt();
+        if (is_eth_enable) {
+            init_eth();
+        }
+        save_eth();
+        send_done();
+    }
     else if (keyValue == "M390")
     {
         if (index_value > 0)
@@ -650,14 +705,29 @@ void communication::execute()
     {
         send_ethernet_ip();
     }
+    else if (keyValue == "M399")
+    {
+        reset_eth_ips();
+        send_ethernet_infor();
+    }
+    else
+    {
+        response("Unknown:Gcode!");
+    }
 
     gcode = "";
 }
 
 void communication::response(String _mes)
 {
-    USBPort.println(_mes);
-    eth_server->println(_mes);
+    if (current_cmd_port == usb_port)
+    {
+        USBPort.println(_mes);
+    }
+    else
+    {
+        eth_client.println(_mes);
+    }
 }
 
 communication control_port;
