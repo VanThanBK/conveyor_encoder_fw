@@ -20,11 +20,11 @@ void communication::init_eth()
 
         if (Ethernet.linkStatus() == LinkOFF)
         {
-            USBPort.println("LinkOFF:Ethernet cable is not connected!");
+            USBPort.println("Unknown:Ethernet cable is not connected!");
         }
         if (Ethernet.linkStatus() == Unknown)
         {
-            USBPort.println("Unknown:Ethernet cable is not connected!");
+            USBPort.println("Unknown:Unknown Device!");
         }
         if (Ethernet.hardwareStatus() == EthernetNoHardware)
         {

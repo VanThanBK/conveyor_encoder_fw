@@ -17,6 +17,7 @@ void interrupt_tp_timer_handle()
 void setup() {
   // disableDebugPorts();
   Serial.end();
+  Serial1.end();
   Serial2.end();
   // Serial3.end();
 
