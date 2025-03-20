@@ -7,20 +7,17 @@
 	#include "WProgram.h"
 #endif
 
+// #define ExecuteStepTimer Timer3
+// #define TurnPinTimer Timer4
+
+
 #define TIME_ISR_ACCEL 2000
 #define MIN_STEP_TIMER_PERIOD 50
 
 #include <EEPROM.h>
+#include <HardwareTimer.h>
 #include "pin.h"
 #include "communication.h"
-#include "HardwareTimer.h"
-
-#define EXECUTE_STEP_TIMER TIM3
-#define TURN_PIN_TIMER TIM4
-
-#define DEFAULT_ACCEL 1000
-#define DEFAULT_SPEED 50
-
 
 typedef enum
 {
@@ -105,10 +102,8 @@ public:
     float auto_run_speed;
 
     float current_vel_button;
-    HardwareTimer *ExecuteStepTimer;
-    HardwareTimer *TurnPinTimer;
-
-    void setTimerPeriod(HardwareTimer *timer , uint32_t _period);
+    HardwareTimer* ExecuteStepTimer;
+    HardwareTimer* TurnPinTimer;
 };
 
 extern Conveyor conveyor;

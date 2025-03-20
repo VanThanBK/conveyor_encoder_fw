@@ -14,11 +14,18 @@ void Conveyor::pinInit()
 void Conveyor::timerInit()
 {
     TurnPinTimer = new HardwareTimer(TIM4);
+    TurnPinTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    TurnPinTimer->setPreloadEnable(0);
+    TurnPinTimer->setPrescaleFactor(TurnPinTimer->getTimerClkFreq() / 1000000);
+    TurnPinTimer->setOverflow(30);
+    TurnPinTimer->pause();
+
     ExecuteStepTimer = new HardwareTimer(TIM3);
-
-    setTimerPeriod(ExecuteStepTimer, 1000);
-    setTimerPeriod(TurnPinTimer, 24);
-
+    ExecuteStepTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    ExecuteStepTimer->setPrescaleFactor(ExecuteStepTimer->getTimerClkFreq() / 1000000);
+    ExecuteStepTimer->setPreloadEnable(0);
+    ExecuteStepTimer->setOverflow(500000);
+    ExecuteStepTimer->pause();
 }
 
 // func eeprom -------------------------------------------------------------
@@ -85,7 +92,9 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
     {
         current_period = MIN_STEP_TIMER_PERIOD;
     }
-    setTimerPeriod(ExecuteStepTimer, current_period);
+    ExecuteStepTimer->pause();
+    ExecuteStepTimer->setOverflow(current_period);
+    ExecuteStepTimer->resume();
 }
 
 void Conveyor::__execute_vel()
@@ -383,18 +392,6 @@ void Conveyor::decreaseSpeedFromButton()
 void Conveyor::setVelocityButton(float _speed)
 {
     speed_when_run_with_button = _speed;
-}
-
-void Conveyor::setTimerPeriod(HardwareTimer *timer, uint32_t _period)
-{
-    timer->pause();
-    timer->setMode(1, TIMER_OUTPUT_COMPARE);
-    timer->setPrescaleFactor(timer->getTimerClkFreq() / 1000000);
-    timer->setOverflow(_period);
-    timer->setPreloadEnable(false);
-
-    // timer->pause();
-    // timer->setPeriod(_period);
 }
 
 Conveyor conveyor;

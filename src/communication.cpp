@@ -6,46 +6,40 @@ void communication::init_eth()
     SPI.setDataMode(SPI_MODE0);
     Ethernet.init(PIN_SPI_SS);
     eth_server = new EthernetServer(ethernet_port);
-
-    ethernet_mac[0] = 0xDE;
-    ethernet_mac[1] = 0xAD;
-    ethernet_mac[2] = 0xBE;
-    ethernet_mac[3] = 0xEF;
-    ethernet_mac[4] = 0xFE;
-    ethernet_mac[5] = 0x12;
-
-    if (Ethernet.begin(ethernet_mac) == 0)
+    int eth_init = Ethernet.begin(ethernet_mac);
+    if (eth_init == 1)
     {
-        USBPort.println("Failed to configure Ethernet using DHCP");
-
-        if (Ethernet.linkStatus() == LinkOFF)
-        {
-            USBPort.println("Unknown:Ethernet cable is not connected!");
-        }
-        if (Ethernet.linkStatus() == Unknown)
-        {
-            USBPort.println("Unknown:Unknown Device!");
-        }
-        if (Ethernet.hardwareStatus() == EthernetNoHardware)
-        {
-            USBPort.println("Unknown:Ethernet hardware error!");
-        }
-
-        Ethernet.begin(ethernet_mac, ethernet_ip, ethernet_dns, ethernet_gateway, ethernet_subnet);
+        USBPort.println("Ethernet init success!");
+    }
+    else if (eth_init == 0)
+    {
+        USBPort.println("Ethernet init failed!");
+    }
+    else
+    {
+        USBPort.println("Unknown:Ethernet init error!");
     }
 
-    // USBPort.print("IP address: ");
-    // USBPort.println(Ethernet.localIP());
+    if (Ethernet.hardwareStatus() == EthernetNoHardware)
+    {
+        ethernet_infor = "Unknown:Ethernet hardware error!";
+    }
 
+    if (Ethernet.linkStatus() == LinkOFF)
+    {
+        ethernet_infor = "Unknown:Ethernet cable is not connected!";
+    }
+
+    USBPort.println(Ethernet.localIP());
     eth_server->begin();
-    delay(1);
-    // Ethernet.maintain();
-    // delay(1);
+    ethernet_infor = "Ethernet init success!";
+
+    Ethernet.maintain();
 }
 
 void communication::save_eth()
 {
-    EEPROM.update(IS_ETH_ENABLE_ADDRESS, is_eth_enable);
+    EEPROM.update(ETHERNET_ENABLE_ADDRESS, is_enable_eth);
     EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port);
 
     EEPROM.update(ETHERNET_IP_ADDRESS, ethernet_ip[0]);
@@ -79,7 +73,7 @@ void communication::save_eth()
 
 void communication::load_eth()
 {
-    is_eth_enable = EEPROM.read(IS_ETH_ENABLE_ADDRESS);
+    is_enable_eth = EEPROM.read(ETHERNET_ENABLE_ADDRESS);
     ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS);
 
     ethernet_ip[0] = EEPROM.read(ETHERNET_IP_ADDRESS);
@@ -240,21 +234,24 @@ void communication::send_ethernet_ip()
     }
 }
 
-void communication::reset_eth_ips()
+void communication::save_string(uint16_t _address, String _str)
 {
-    ethernet_port = 80;
-    ethernet_ip = IPAddress(0, 0, 0, 0);
-    ethernet_dns = IPAddress(0, 0, 0, 0);
-    ethernet_gateway = IPAddress(0, 0, 0, 0);
-    ethernet_subnet = IPAddress(0, 0, 0, 0);
-    ethernet_mac[0] = 0xDE;
-    ethernet_mac[1] = 0xAD;
-    ethernet_mac[2] = 0xBE;
-    ethernet_mac[3] = 0xEF;
-    ethernet_mac[4] = 0xFE;
-    ethernet_mac[5] = 0xED;
-    save_eth();
-    init_eth();
+    int _len = _str.length();
+    EEPROM.update(_address, _len);
+    for (int i = 0; i < _len; i++)
+    {
+        EEPROM.update(_address + i, _str[i]);
+    }
+}
+
+void communication::load_string(uint16_t _address, String &_str)
+{
+    int _len = EEPROM.read(_address);
+    _str = "";
+    for (int i = 0; i < _len; i++)
+    {
+        _str += (char)EEPROM.read(_address + i + 1);
+    }
 }
 
 void communication::send_input_a_state()
@@ -292,23 +289,39 @@ void communication::init()
     USBPort.begin(115200);
     USBPort.setTimeout(5);
 
-    load_eth();
-
     receive_string.reserve(100);
     is_string_complete = false;
     receive_string = "";
+
+    ethernet_port = DEFAULT_PORT;
+    ethernet_mac[0] = 0xDE;
+    ethernet_mac[1] = 0xAD;
+    ethernet_mac[2] = 0xBE;
+    ethernet_mac[3] = 0xEF;
+    ethernet_mac[4] = 0xFE;
+    ethernet_mac[5] = 0x13;
+
+    EEPROM.read(ETHERNET_ENABLE_ADDRESS) == 1 ? is_enable_eth = true : is_enable_eth = false;
+    load_string(DEVICE_NAME_ADDRESS, device_name);
+    load_string(UUID_ADDRESS, UUID);
+    load_string(FIRMWARE_VERSION_ADDRESS, firmware_version);
+    load_string(BOARD_VERSION_ADDRESS, board_version);
+    load_string(SERIAL_NUMBER_ADDRESS, serial_number);
 
     pinMode(ETH_RESET_PIN, OUTPUT);
     digitalWrite(ETH_RESET_PIN, 0);
     delay(100);
     digitalWrite(ETH_RESET_PIN, 1);
     delay(100);
-    if (is_eth_enable) {
+
+    if (is_enable_eth)
+    {
+        load_eth();
         init_eth();
     }
 
     pinMode(LED_RUN_PIN, OUTPUT);
-    digitalWrite(LED_RUN_PIN, run_led_state);
+    digitalWrite(LED_RUN_PIN, 0);
 
     pinMode(LED_FUNC_PIN, OUTPUT);
 }
@@ -358,8 +371,7 @@ void communication::execute()
         receive_string = "";
         is_string_complete = false;
         current_cmd_port = usb_port;
-        func_led_state = !func_led_state;
-        digitalWrite(LED_FUNC_PIN, func_led_state);
+        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
     }
     else if (is_eth_string_complete)
     {
@@ -367,8 +379,7 @@ void communication::execute()
         eth_receive_string = "";
         is_eth_string_complete = false;
         current_cmd_port = eth_port;
-        func_led_state = !func_led_state;
-        digitalWrite(LED_FUNC_PIN, func_led_state);
+        digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
     }
     else
     {
@@ -406,14 +417,22 @@ void communication::execute()
         gcode = "";
         return;
     }
-
     else if (gcode == "IP")
     {
-        send_ethernet_ip();
+        if (current_cmd_port == usb_port)
+        {
+            send_ethernet_ip();
+        }
+        else
+        {
+            eth_client.println("IP");
+            send_ethernet_ip();
+        }
         gcode = "";
         return;
     }
 
+    // tach
     String splitWord = "";
     gcode += " ";
     byte index_value = 0;
@@ -625,18 +644,20 @@ void communication::execute()
             send_done();
         }
     }
-
-    // eth setting
-
-    else if (keyValue == "M389") 
+    else if (keyValue == "M389")
     {
-        is_eth_enable = _value1.toInt();
-        if (is_eth_enable) {
+        if (_value1.toInt() == 1)
+        {
+            is_enable_eth = true;
             init_eth();
         }
-        save_eth();
+        else
+        {
+            is_enable_eth = false;
+        }
         send_done();
     }
+    // eth setting
     else if (keyValue == "M390")
     {
         if (index_value > 0)
@@ -705,14 +726,109 @@ void communication::execute()
     {
         send_ethernet_ip();
     }
-    else if (keyValue == "M399")
+    else if (keyValue == "DEVICE_NAME")
     {
-        reset_eth_ips();
-        send_ethernet_infor();
+        if (_value1.length() > 0)
+        {
+            device_name = _value1;
+            save_string(DEVICE_NAME_ADDRESS, device_name);
+            send_done();
+        }
+        else
+        {
+            if (current_cmd_port == usb_port)
+            {
+                USBPort.println(device_name);
+            }
+            else
+            {
+                eth_client.println(device_name);
+            }
+        }
+    }
+    else if (keyValue == "UUID")
+    {
+        if (_value1.length() > 0)
+        {
+            UUID = _value1;
+            save_string(UUID_ADDRESS, UUID);
+            send_done();
+        }
+        else
+        {
+            if (current_cmd_port == usb_port)
+            {
+                USBPort.println(UUID);
+            }
+            else
+            {
+                eth_client.println(UUID);
+            }
+        }
+    }
+    else if (keyValue == "FIRMWARE_VERSION")
+    {
+        if (_value1.length() > 0)
+        {
+            firmware_version = _value1;
+            save_string(FIRMWARE_VERSION_ADDRESS, firmware_version);
+            send_done();
+        }
+        else
+        {
+            if (current_cmd_port == usb_port)
+            {
+                USBPort.println(firmware_version);
+            }
+            else
+            {
+                eth_client.println(firmware_version);
+            }
+        }
+    }
+    else if (keyValue == "BOARD_VERSION")
+    {
+        if (_value1.length() > 0)
+        {
+            board_version = _value1;
+            save_string(BOARD_VERSION_ADDRESS, board_version);
+            send_done();
+        }
+        else
+        {
+            if (current_cmd_port == usb_port)
+            {
+                USBPort.println(board_version);
+            }
+            else
+            {
+                eth_client.println(board_version);
+            }
+        }
+    }
+    else if (keyValue == "SERIAL_NUMBER")
+    {
+        if (_value1.length() > 0)
+        {
+            serial_number = _value1;
+            save_string(SERIAL_NUMBER_ADDRESS, serial_number);
+            send_done();
+        }
+        else
+        {
+            if (current_cmd_port == usb_port)
+            {
+                USBPort.println(serial_number);
+            }
+            else
+            {
+                eth_client.println(serial_number);
+            }
+        }
     }
     else
     {
-        response("Unknown:Gcode!");
+        response("Unknown:G-code!");
     }
 
     gcode = "";
@@ -720,14 +836,8 @@ void communication::execute()
 
 void communication::response(String _mes)
 {
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(_mes);
-    }
-    else
-    {
-        eth_client.println(_mes);
-    }
+    USBPort.println(_mes);
+    eth_server->println(_mes);
 }
 
 communication control_port;

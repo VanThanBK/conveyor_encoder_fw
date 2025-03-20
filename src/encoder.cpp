@@ -28,8 +28,18 @@ void Encoder::init()
     pinInit();
     attachInterruptEncoderPin();
 
-    AutoFeedbackTimer = new HardwareTimer(AUTO_FEEDBACK_TIMER);
-    conveyor.setTimerPeriod(AutoFeedbackTimer, 24);
+    // AutoFeedbackTimer.setPeriod(24);
+    // AutoFeedbackTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    // AutoFeedbackTimer.setCompare(TIMER_CH1, 1);
+    // AutoFeedbackTimer.pause();
+
+    // AutoFeedbackTimer.attachInterrupt(TIMER_CH1, interrupt_auto_timer_handle);
+
+    AutoFeedbackTimer = new HardwareTimer(TIM2);
+    AutoFeedbackTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    AutoFeedbackTimer->setPrescaleFactor(AutoFeedbackTimer->getTimerClkFreq() / 1000000);
+    AutoFeedbackTimer->setOverflow(1000);
+    AutoFeedbackTimer->pause();
 
     AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
 
@@ -72,6 +82,7 @@ void Encoder::attachInterruptEncoderPin()
 
         attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, RISING);
         attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), interrupt_channel_b_handel, RISING);
+        
     }
     else if (encoder_scale == SCALE_X4)
     {
@@ -280,8 +291,7 @@ void Encoder::setTimeAutoFeedback(uint16_t _time)
         return;
     }
     time_auto_feedback = _time;
-    // AutoFeedbackTimer->setPeriod(_time * 1000);
-    conveyor.setTimerPeriod(AutoFeedbackTimer, _time);
+    AutoFeedbackTimer->setOverflow(_time * 1000, MICROSEC_FORMAT);
     AutoFeedbackTimer->resume();
 }
 
@@ -419,7 +429,7 @@ void Encoder::execute()
         {
             return;
         }
-
+        
         last_time_auto_feedback = micros();
 
         if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
@@ -438,45 +448,35 @@ void Encoder::execute()
     }
     else if (encoder_mode == AS_BUTTON)
     {
-        if (a_input_state == false)
-        {
+        if (a_input_state == false) {
             button_start = RELEASE;
             last_time_button_start = millis();
         }
-        else if (millis() - last_time_button_start > 2000 && button_start == PRESS)
-        {
+        else if (millis() - last_time_button_start > 2000 && button_start == PRESS) {
             button_start = HOLDING;
             conveyor.startFromButton();
-            control_port.func_led_state = !control_port.func_led_state;
-            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
-        else if (millis() - last_time_button_start > 150 && button_start == RELEASE)
-        {
+        else if (millis() - last_time_button_start > 150 && button_start == RELEASE) {
             button_start = PRESS;
             conveyor.increaseSpeedFromButton();
-            control_port.func_led_state = !control_port.func_led_state;
-            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
 
-        if (b_input_state == false)
-        {
+        if (b_input_state == false) {
             button_stop = RELEASE;
             last_time_button_stop = millis();
         }
-        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS)
-        {
+        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS) {
             button_stop = HOLDING;
             conveyor.stopFromButton();
-            control_port.func_led_state = !control_port.func_led_state;
-            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
         }
-        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE)
-        {
+        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE) {
             button_stop = PRESS;
             conveyor.decreaseSpeedFromButton();
-            control_port.func_led_state = !control_port.func_led_state;
-            digitalWrite(LED_FUNC_PIN, control_port.func_led_state);
-        }
+            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+        } 
     }
 }
 

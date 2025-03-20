@@ -9,8 +9,9 @@
 
 #include "encoder.h"
 #include "conveyor.h"
-#include "Ethernet.h"
+#include <Ethernet.h>
 #include <SPI.h>
+
 #define USBPort Serial1
 
 class communication
@@ -41,8 +42,16 @@ private:
 	IPAddress ethernet_subnet;
 	byte ethernet_mac[6];
     String ethernet_infor;
+    String device_name = String(DEFAULT_DEVICE_NAME);
+    String UUID = String(DEFAULT_UUID);
+    String firmware_version = String(DEFAULT_FIRMWARE_VERSION);
+    String board_version = String(DEFAULT_BOARD_VERSION);
+    String serial_number = String(DEFAULT_SERIAL_NUMBER);
 
+
+    bool is_enable_eth;
     void init_eth();
+
     void save_eth();
     void load_eth();
 
@@ -52,7 +61,9 @@ private:
     void send_conveyor_infor();
     void send_ethernet_infor();
     void send_ethernet_ip();
-    void reset_eth_ips();
+
+    void save_string(uint16_t _address, String _str);
+    void load_string(uint16_t _address, String &_str);
 public:
     void init();
     void execute();
@@ -61,10 +72,6 @@ public:
 
     void send_input_a_state();
     void send_input_b_state();
-
-    bool func_led_state = false;
-    bool run_led_state = false;
-    bool is_eth_enable = false;
 };
 
 extern communication control_port;

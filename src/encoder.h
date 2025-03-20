@@ -11,7 +11,8 @@
 #include "pin.h"
 #include "communication.h"
 #include "conveyor.h"
-#define AUTO_FEEDBACK_TIMER TIM2
+
+// #define AutoFeedbackTimer Timer2
 
 //scale of encoder pulse
 #define SCALE_X1 1
@@ -112,8 +113,7 @@ public:
 
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;
-
-    HardwareTimer *AutoFeedbackTimer;
+    HardwareTimer* AutoFeedbackTimer;
 };
 
 extern Encoder encoder;
