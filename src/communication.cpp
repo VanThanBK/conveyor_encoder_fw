@@ -555,12 +555,6 @@ void communication::execute()
             conveyor.setAccel(_value1.substring(1).toFloat());
             send_done();
         }
-        else if (index_value > 0 && _value1[0] == 'B')
-        {
-            // set accel
-            conveyor.setVelocityButton(_value1.substring(1).toFloat());
-            send_done();
-        }
         else
         {
             send_conveyor_infor();

@@ -47,6 +47,8 @@ private:
     uint32_t pulse_counter;
     uint32_t total_pulse;
 
+    uint32_t checking_potentiometer_period;
+
     float speed_when_run_with_button;
 
     void pinInit();
@@ -87,11 +89,13 @@ public:
 
     void setOutput(uint8_t _pin, uint8_t _value);
 
-    void startFromButton();
-    void stopFromButton();
-    void increaseSpeedFromButton();
-    void decreaseSpeedFromButton();
-    void setVelocityButton(float _speed);
+    // void startFromButton();
+    // void stopFromButton();
+    // void increaseSpeedFromButton();
+    // void decreaseSpeedFromButton();
+    // void setVelocityButton(float _speed);
+
+    void execute();
 
     float pulse_per_mm;
     bool reverse_conveyor;
@@ -100,6 +104,12 @@ public:
 
     bool is_auto_run_speed;
     float auto_run_speed;
+    float max_speed;
+    int potentiometer_value;
+    int raw_potentiometer_values;
+    unsigned long last_read_potentiometer_time;
+    uint8_t read_potentiometer_counter;
+    uint8_t read_potentiometer_period;
 
     float current_vel_button;
     HardwareTimer* ExecuteStepTimer;

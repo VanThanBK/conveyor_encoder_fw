@@ -34,7 +34,6 @@ typedef enum
     ABSOLUTE = 0,
     RELATIVE,
     AS_INPUT_PIN,
-    AS_BUTTON,
 } ENCODER_MODE;
 
 typedef enum
@@ -110,6 +109,7 @@ public:
     ENCODER_MODE encoder_mode;
     bool reverse_encoder;
     uint16_t time_auto_feedback;
+    float max_speed;
 
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;

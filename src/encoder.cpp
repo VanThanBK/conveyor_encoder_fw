@@ -59,7 +59,7 @@ void Encoder::pinInit()
 
 void Encoder::attachInterruptEncoderPin()
 {
-    if (encoder_mode == AS_INPUT_PIN || encoder_mode == AS_BUTTON)
+    if (encoder_mode == AS_INPUT_PIN)
     {
         // attach interrupt a channel encoder
         attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, CHANGE);
@@ -95,7 +95,7 @@ void Encoder::attachInterruptEncoderPin()
 
 void Encoder::__encoder_handle(uint8_t _channel)
 {
-    if (encoder_mode == AS_INPUT_PIN || encoder_mode == AS_BUTTON)
+    if (encoder_mode == AS_INPUT_PIN)
     {
         if (_channel == CHANNEL_A)
         {
@@ -445,38 +445,6 @@ void Encoder::execute()
             control_port.response(_mes);
             b_input_state_last = b_input_state;
         }
-    }
-    else if (encoder_mode == AS_BUTTON)
-    {
-        if (a_input_state == false) {
-            button_start = RELEASE;
-            last_time_button_start = millis();
-        }
-        else if (millis() - last_time_button_start > 2000 && button_start == PRESS) {
-            button_start = HOLDING;
-            conveyor.startFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
-        }
-        else if (millis() - last_time_button_start > 150 && button_start == RELEASE) {
-            button_start = PRESS;
-            conveyor.increaseSpeedFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
-        }
-
-        if (b_input_state == false) {
-            button_stop = RELEASE;
-            last_time_button_stop = millis();
-        }
-        else if (millis() - last_time_button_stop > 2000 && button_stop == PRESS) {
-            button_stop = HOLDING;
-            conveyor.stopFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
-        }
-        else if (millis() - last_time_button_stop > 150 && button_stop == RELEASE) {
-            button_stop = PRESS;
-            conveyor.decreaseSpeedFromButton();
-            digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
-        } 
     }
 }
 

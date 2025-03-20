@@ -58,13 +58,12 @@ void Conveyor::save_data()
 
 void Conveyor::load_data()
 {
+    max_speed = DEFAULT_MAX_SPEED;
     reverse_conveyor = (bool)EEPROM.read(REVERSE_CONVEYOR_ADDRESS);
     conveyor_mode = (CONVEYOR_MODE)EEPROM.read(IS_CONVEYOR_MODE_ADDRESS);
     getFloatFromEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     is_run_with_encoder = (bool)EEPROM.read(IS_RUN_WITH_ENCODER_ADDRESS);
-
     getFloatFromEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
-
     getFloatFromEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
@@ -250,6 +249,7 @@ void Conveyor::setReverseConveyor(bool _dir)
 void Conveyor::setPulsePerMm(float _pulse)
 {
     pulse_per_mm = _pulse;
+    max_speed = 1000000 / (pulse_per_mm * MIN_STEP_TIMER_PERIOD);
     save_data();
 }
 
@@ -349,49 +349,34 @@ void Conveyor::setOutput(uint8_t _pin, uint8_t _value)
     }
 }
 
-void Conveyor::startFromButton()
+void Conveyor::execute()
 {
-    if (conveyor_mode != CONVEYOR_VEL_INPUT)
+    if (conveyor_mode == CONVEYOR_VEL_INPUT)
     {
-        return;
+        if (millis() - last_read_potentiometer_time > read_potentiometer_period)
+        {
+            last_read_potentiometer_time = millis();
+            
+            if (read_potentiometer_counter < 10)
+            {
+                raw_potentiometer_values += analogRead(POTENTIOMETER_PIN);
+                read_potentiometer_counter++;
+            }
+            else
+            {
+                potentiometer_value = raw_potentiometer_values / 10;
+                raw_potentiometer_values = 0;
+                read_potentiometer_counter = 0;
+                float _speed = map(potentiometer_value, 0, 1023, -max_speed, max_speed);
+                if (abs(_speed) < 5)
+                {
+                    _speed = 0;
+                }
+                setVelocity(_speed);
+            }
+            
+        }
     }
-    current_vel_button = speed_when_run_with_button;
-    setVelocity(current_vel_button);
-}
-
-void Conveyor::stopFromButton()
-{
-    if (conveyor_mode != CONVEYOR_VEL_INPUT)
-    {
-        return;
-    }
-    current_vel_button = 0;
-    setVelocity(current_vel_button);
-}
-
-void Conveyor::increaseSpeedFromButton()
-{
-    if (conveyor_mode != CONVEYOR_VEL_INPUT)
-    {
-        return;
-    }
-    current_vel_button += 10;
-    setVelocity(current_vel_button);
-}
-
-void Conveyor::decreaseSpeedFromButton()
-{
-    if (conveyor_mode != CONVEYOR_VEL_INPUT)
-    {
-        return;
-    }
-    current_vel_button -= 10;
-    setVelocity(current_vel_button);
-}
-
-void Conveyor::setVelocityButton(float _speed)
-{
-    speed_when_run_with_button = _speed;
 }
 
 Conveyor conveyor;
