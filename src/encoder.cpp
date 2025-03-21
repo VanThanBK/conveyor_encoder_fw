@@ -29,8 +29,11 @@ void Encoder::init()
     attachInterruptEncoderPin();
 
     AutoFeedbackTimer = new HardwareTimer(AUTO_FEEDBACK_TIMER);
-    conveyor.setTimerPeriod(AutoFeedbackTimer, 24);
-
+    AutoFeedbackTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    AutoFeedbackTimer->setPrescaleFactor(AutoFeedbackTimer->getTimerClkFreq() / 1000000);
+    AutoFeedbackTimer->setOverflow(24);
+    AutoFeedbackTimer->setPreloadEnable(false);
+    AutoFeedbackTimer->pause();
     AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
 
     a_input_state = digitalRead(a_pin_encoder);
@@ -280,8 +283,9 @@ void Encoder::setTimeAutoFeedback(uint16_t _time)
         return;
     }
     time_auto_feedback = _time;
-    // AutoFeedbackTimer->setPeriod(_time * 1000);
-    conveyor.setTimerPeriod(AutoFeedbackTimer, _time);
+
+    AutoFeedbackTimer->pause();
+    AutoFeedbackTimer->setOverflow(_time);
     AutoFeedbackTimer->resume();
 }
 

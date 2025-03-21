@@ -16,9 +16,17 @@ void Conveyor::timerInit()
     TurnPinTimer = new HardwareTimer(TIM4);
     ExecuteStepTimer = new HardwareTimer(TIM3);
 
-    setTimerPeriod(ExecuteStepTimer, 1000);
-    setTimerPeriod(TurnPinTimer, 24);
+    TurnPinTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    TurnPinTimer->setPrescaleFactor(TurnPinTimer->getTimerClkFreq() / 1000000);
+    TurnPinTimer->setOverflow(24);
+    TurnPinTimer->setPreloadEnable(false);
+    TurnPinTimer->pause();
 
+    ExecuteStepTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    ExecuteStepTimer->setPrescaleFactor(ExecuteStepTimer->getTimerClkFreq() / 1000000);
+    ExecuteStepTimer->setOverflow(1000);
+    ExecuteStepTimer->setPreloadEnable(false);
+    ExecuteStepTimer->pause();
 }
 
 // func eeprom -------------------------------------------------------------
@@ -55,9 +63,7 @@ void Conveyor::load_data()
     conveyor_mode = (CONVEYOR_MODE)EEPROM.read(IS_CONVEYOR_MODE_ADDRESS);
     getFloatFromEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     is_run_with_encoder = (bool)EEPROM.read(IS_RUN_WITH_ENCODER_ADDRESS);
-
     getFloatFromEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
-
     getFloatFromEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
@@ -85,7 +91,10 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
     {
         current_period = MIN_STEP_TIMER_PERIOD;
     }
-    setTimerPeriod(ExecuteStepTimer, current_period);
+    
+    ExecuteStepTimer->pause();
+    ExecuteStepTimer->setOverflow(current_period);
+    ExecuteStepTimer->resume();
 }
 
 void Conveyor::__execute_vel()
@@ -383,18 +392,6 @@ void Conveyor::decreaseSpeedFromButton()
 void Conveyor::setVelocityButton(float _speed)
 {
     speed_when_run_with_button = _speed;
-}
-
-void Conveyor::setTimerPeriod(HardwareTimer *timer, uint32_t _period)
-{
-    timer->pause();
-    timer->setMode(1, TIMER_OUTPUT_COMPARE);
-    timer->setPrescaleFactor(timer->getTimerClkFreq() / 1000000);
-    timer->setOverflow(_period);
-    timer->setPreloadEnable(false);
-
-    // timer->pause();
-    // timer->setPeriod(_period);
 }
 
 Conveyor conveyor;

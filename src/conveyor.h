@@ -108,7 +108,6 @@ public:
     HardwareTimer *ExecuteStepTimer;
     HardwareTimer *TurnPinTimer;
 
-    void setTimerPeriod(HardwareTimer *timer , uint32_t _period);
 };
 
 extern Conveyor conveyor;
