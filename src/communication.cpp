@@ -322,7 +322,6 @@ void communication::init()
 
     pinMode(LED_RUN_PIN, OUTPUT);
     digitalWrite(LED_RUN_PIN, 0);
-
     pinMode(LED_FUNC_PIN, OUTPUT);
 }
 
@@ -427,6 +426,27 @@ void communication::execute()
         {
             eth_client.println("IP");
             send_ethernet_ip();
+        }
+        gcode = "";
+        return;
+    }
+    else if (gcode == "Infor")
+    {
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println("Device Name: " + device_name);
+            USBPort.println("UUID: " + UUID);
+            USBPort.println("Firmware Version: " + firmware_version);
+            USBPort.println("Board Version: " + board_version);
+            USBPort.println("Serial No: " + serial_number);
+        }
+        else
+        {
+            eth_client.println("Device Name: " + device_name);
+            eth_client.println("UUID: " + UUID);
+            eth_client.println("Firmware Version: " + firmware_version);
+            eth_client.println("Board Version: " + board_version);
+            eth_client.println("Serial No: " + serial_number);
         }
         gcode = "";
         return;
@@ -560,7 +580,6 @@ void communication::execute()
             send_conveyor_infor();
         }
     }
-
     // encoder
     else if (keyValue == "M316")
     {
@@ -720,24 +739,13 @@ void communication::execute()
     {
         send_ethernet_ip();
     }
-    else if (keyValue == "DEVICE_NAME")
+    else if (keyValue == "NAME")
     {
         if (_value1.length() > 0)
         {
             device_name = _value1;
             save_string(DEVICE_NAME_ADDRESS, device_name);
             send_done();
-        }
-        else
-        {
-            if (current_cmd_port == usb_port)
-            {
-                USBPort.println(device_name);
-            }
-            else
-            {
-                eth_client.println(device_name);
-            }
         }
     }
     else if (keyValue == "UUID")
@@ -748,19 +756,8 @@ void communication::execute()
             save_string(UUID_ADDRESS, UUID);
             send_done();
         }
-        else
-        {
-            if (current_cmd_port == usb_port)
-            {
-                USBPort.println(UUID);
-            }
-            else
-            {
-                eth_client.println(UUID);
-            }
-        }
     }
-    else if (keyValue == "FIRMWARE_VERSION")
+    else if (keyValue == "FIRM")
     {
         if (_value1.length() > 0)
         {
@@ -768,19 +765,8 @@ void communication::execute()
             save_string(FIRMWARE_VERSION_ADDRESS, firmware_version);
             send_done();
         }
-        else
-        {
-            if (current_cmd_port == usb_port)
-            {
-                USBPort.println(firmware_version);
-            }
-            else
-            {
-                eth_client.println(firmware_version);
-            }
-        }
     }
-    else if (keyValue == "BOARD_VERSION")
+    else if (keyValue == "BOAR")
     {
         if (_value1.length() > 0)
         {
@@ -788,36 +774,14 @@ void communication::execute()
             save_string(BOARD_VERSION_ADDRESS, board_version);
             send_done();
         }
-        else
-        {
-            if (current_cmd_port == usb_port)
-            {
-                USBPort.println(board_version);
-            }
-            else
-            {
-                eth_client.println(board_version);
-            }
-        }
     }
-    else if (keyValue == "SERIAL_NUMBER")
+    else if (keyValue == "SERI")
     {
         if (_value1.length() > 0)
         {
             serial_number = _value1;
             save_string(SERIAL_NUMBER_ADDRESS, serial_number);
             send_done();
-        }
-        else
-        {
-            if (current_cmd_port == usb_port)
-            {
-                USBPort.println(serial_number);
-            }
-            else
-            {
-                eth_client.println(serial_number);
-            }
         }
     }
     else

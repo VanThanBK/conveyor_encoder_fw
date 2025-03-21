@@ -50,9 +50,7 @@ void Conveyor::save_data()
     EEPROM.update(IS_CONVEYOR_MODE_ADDRESS, conveyor_mode);
     putFloatToEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     EEPROM.update(IS_RUN_WITH_ENCODER_ADDRESS, is_run_with_encoder);
-
     putFloatToEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
-
     putFloatToEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
