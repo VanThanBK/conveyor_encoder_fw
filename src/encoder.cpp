@@ -28,13 +28,20 @@ void Encoder::init()
     pinInit();
     attachInterruptEncoderPin();
 
+#if defined(__STM32F1__)
+    AutoFeedbackTimer.setPeriod(24000);
+    AutoFeedbackTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    AutoFeedbackTimer.setCompare(TIMER_CH1, 1);
+    AutoFeedbackTimer.pause();
+    AutoFeedbackTimer.attachInterrupt(TIMER_CH1, interrupt_auto_timer_handle);
+#else
     AutoFeedbackTimer = new HardwareTimer(AUTO_FEEDBACK_TIMER);
     AutoFeedbackTimer->setMode(1, TIMER_OUTPUT_COMPARE);
-    AutoFeedbackTimer->setPrescaleFactor(AutoFeedbackTimer->getTimerClkFreq() / 1000000);
-    AutoFeedbackTimer->setOverflow(24);
-    AutoFeedbackTimer->setPreloadEnable(false);
+    AutoFeedbackTimer->setCaptureCompare(1, 1, MICROSEC_COMPARE_FORMAT);
+    AutoFeedbackTimer->setOverflow(1000000, MICROSEC_FORMAT);
     AutoFeedbackTimer->pause();
     AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
+#endif
 
     a_input_state = digitalRead(a_pin_encoder);
     b_input_state = digitalRead(b_pin_encoder);
@@ -275,6 +282,20 @@ void Encoder::setReverseEncoder(bool _dir)
 
 void Encoder::setTimeAutoFeedback(uint16_t _time)
 {
+#if defined(__STM32F1__)
+        if (_time < 50)
+    {
+        _time = 0;
+        time_auto_feedback = _time;
+        AutoFeedbackTimer.pause();
+        return;
+    }
+    time_auto_feedback = _time;
+
+    AutoFeedbackTimer.pause();
+    AutoFeedbackTimer.setPeriod(_time * 1000);
+    AutoFeedbackTimer.resume();
+#else
     if (_time < 50)
     {
         _time = 0;
@@ -285,8 +306,9 @@ void Encoder::setTimeAutoFeedback(uint16_t _time)
     time_auto_feedback = _time;
 
     AutoFeedbackTimer->pause();
-    AutoFeedbackTimer->setOverflow(_time);
+    AutoFeedbackTimer->setOverflow(_time * 1000, MICROSEC_FORMAT);
     AutoFeedbackTimer->resume();
+#endif
 }
 
 // func eeprom -------------------------------------------------------------

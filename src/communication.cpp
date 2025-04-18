@@ -4,7 +4,11 @@ void communication::init_eth()
 {
     SPI.setBitOrder(MSBFIRST);
     SPI.setDataMode(SPI_MODE0);
+#if !defined(__STM32F1__)
     Ethernet.init(PIN_SPI_SS);
+#else
+    Ethernet.init(BOARD_SPI1_NSS_PIN);
+#endif
     eth_server = new EthernetServer(ethernet_port);
 
     ethernet_mac[0] = 0xDE;
@@ -17,7 +21,6 @@ void communication::init_eth()
     if (Ethernet.begin(ethernet_mac) == 0)
     {
         USBPort.println("Failed to configure Ethernet using DHCP");
-
         if (Ethernet.linkStatus() == LinkOFF)
         {
             USBPort.println("LinkOFF:Ethernet cable is not connected!");
@@ -30,17 +33,13 @@ void communication::init_eth()
         {
             USBPort.println("Unknown:Ethernet hardware error!");
         }
-
         Ethernet.begin(ethernet_mac, ethernet_ip, ethernet_dns, ethernet_gateway, ethernet_subnet);
     }
 
-    // USBPort.print("IP address: ");
-    // USBPort.println(Ethernet.localIP());
-
     eth_server->begin();
-    delay(1);
-    // Ethernet.maintain();
-    // delay(1);
+    delay(10);
+    ethernet_infor = "Ethernet init success!";
+	Ethernet.maintain();
 }
 
 void communication::save_eth()
@@ -289,6 +288,10 @@ void communication::send_input_b_state()
 
 void communication::init()
 {
+#if !defined(__STM32F1__)
+    USBPort.setTx(PA9);
+    USBPort.setRx(PA10);
+#endif
     USBPort.begin(115200);
     USBPort.setTimeout(5);
 
@@ -309,7 +312,6 @@ void communication::init()
 
     pinMode(LED_RUN_PIN, OUTPUT);
     digitalWrite(LED_RUN_PIN, run_led_state);
-
     pinMode(LED_FUNC_PIN, OUTPUT);
 }
 

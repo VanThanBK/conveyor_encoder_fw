@@ -2,23 +2,28 @@
 #define _ENCODER_h
 
 #if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
+#include "arduino.h"
 #else
-	#include "WProgram.h"
+#include "WProgram.h"
 #endif
 
 #include <EEPROM.h>
 #include "pin.h"
 #include "communication.h"
 #include "conveyor.h"
-#define AUTO_FEEDBACK_TIMER TIM2
 
-//scale of encoder pulse
+#if defined(__STM32F1__)
+#define AutoFeedbackTimer Timer2
+#else
+#define AUTO_FEEDBACK_TIMER TIM2
+#endif
+
+// scale of encoder pulse
 #define SCALE_X1 1
 #define SCALE_X2 2
 #define SCALE_X4 4
 
-//channel in encoder
+// channel in encoder
 #define CHANNEL_A 0
 #define CHANNEL_B 1
 
@@ -46,20 +51,20 @@ typedef enum
 class Encoder
 {
 private:
-    //encoder pin array
+    // encoder pin array
     uint8_t a_pin_encoder;
     uint8_t b_pin_encoder;
 
-    int32_t pulse_counter;  //encoder pulse counter
+    int32_t pulse_counter; // encoder pulse counter
     int32_t last_relative_pulse_counter;
-    float current_position;  //current angle of robot rf arm
+    float current_position; // current angle of robot rf arm
     float last_relative_position;
 
     bool a_input_state;
     bool b_input_state;
     bool a_input_state_last;
     bool b_input_state_last;
-    
+
     bool is_auto_feedback_a;
     bool is_auto_feedback_b;
 
@@ -78,6 +83,7 @@ private:
 
     long last_time_button_start;
     long last_time_button_stop;
+
 public:
     void init();
     void __encoder_handle(uint8_t _channel);
@@ -113,7 +119,9 @@ public:
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;
 
+#if !defined(__STM32F1__)
     HardwareTimer *AutoFeedbackTimer;
+#endif
 };
 
 extern Encoder encoder;

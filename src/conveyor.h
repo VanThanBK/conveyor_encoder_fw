@@ -2,10 +2,12 @@
 #define _CONVEYOR_h
 
 #if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
+#include "arduino.h"
 #else
-	#include "WProgram.h"
+#include "WProgram.h"
 #endif
+
+
 
 #define TIME_ISR_ACCEL 2000
 #define MIN_STEP_TIMER_PERIOD 50
@@ -13,14 +15,20 @@
 #include <EEPROM.h>
 #include "pin.h"
 #include "communication.h"
-#include "HardwareTimer.h"
+
+#if !defined(__STM32F1__)
+#include <HardwareTimer.h>
 
 #define EXECUTE_STEP_TIMER TIM3
 #define TURN_PIN_TIMER TIM4
+#else
+#define ExecuteStepTimer Timer3
+#define TurnPinTimer Timer4
+#endif
+
 
 #define DEFAULT_ACCEL 1000
 #define DEFAULT_SPEED 50
-
 
 typedef enum
 {
@@ -32,6 +40,43 @@ typedef enum
 
 class Conveyor
 {
+public:
+    void init();
+    void __timer_handle();
+    void __tp_timer_handle();
+
+    void setConveyorMode(uint8_t _enable);
+    void setReverseConveyor(bool _dir);
+    void setPulsePerMm(float _pulse);
+    void setRunWithEncoder(bool _enable);
+
+    void setPosition(float _pos);
+    void setVelocity(float _speed);
+    void setVelocityPos(float _speed);
+    void stopPosition();
+
+    void setAccel(float _accel);
+    void setOutput(uint8_t _pin, uint8_t _value);
+
+    void startFromButton();
+    void stopFromButton();
+    void increaseSpeedFromButton();
+    void decreaseSpeedFromButton();
+    void setVelocityButton(float _speed);
+
+    float pulse_per_mm;
+    bool reverse_conveyor;
+    CONVEYOR_MODE conveyor_mode;
+    bool is_run_with_encoder;
+
+    bool is_auto_run_speed;
+    float auto_run_speed;
+    float current_vel_button;
+
+#if !defined(__STM32F1__)
+    HardwareTimer *ExecuteStepTimer;
+    HardwareTimer *TurnPinTimer;
+#endif
 private:
     /* data */
     float current_position;
@@ -70,46 +115,8 @@ private:
     void __execute_pos();
 
     void execute_speed(float _speed);
-    
-public:
-    void init();
-    void __timer_handle();
-    void __tp_timer_handle();
-
-    void setConveyorMode(uint8_t _enable);
-    void setReverseConveyor(bool _dir);
-    void setPulsePerMm(float _pulse);
-    void setRunWithEncoder(bool _enable);
-
-    void setPosition(float _pos);
-    void setVelocity(float _speed);
-    void setVelocityPos(float _speed);
-    void stopPosition();
-
-    void setAccel(float _accel);
-
-    void setOutput(uint8_t _pin, uint8_t _value);
-
-    void startFromButton();
-    void stopFromButton();
-    void increaseSpeedFromButton();
-    void decreaseSpeedFromButton();
-    void setVelocityButton(float _speed);
-
-    float pulse_per_mm;
-    bool reverse_conveyor;
-    CONVEYOR_MODE conveyor_mode;
-    bool is_run_with_encoder;
-
-    bool is_auto_run_speed;
-    float auto_run_speed;
-
-    float current_vel_button;
-    HardwareTimer *ExecuteStepTimer;
-    HardwareTimer *TurnPinTimer;
-
 };
 
 extern Conveyor conveyor;
 
-#endif
+#endif // _CONVEYOR_h

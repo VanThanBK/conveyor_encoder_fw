@@ -13,20 +13,32 @@ void Conveyor::pinInit()
 
 void Conveyor::timerInit()
 {
-    TurnPinTimer = new HardwareTimer(TIM4);
-    ExecuteStepTimer = new HardwareTimer(TIM3);
+#if defined(__STM32F1__)
+    TurnPinTimer.setPeriod(50000);
+    TurnPinTimer.pause();
 
+    ExecuteStepTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    ExecuteStepTimer.setCompare(TIMER_CH1, 1);
+    ExecuteStepTimer.pause();
+
+    TurnPinTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    TurnPinTimer.setCompare(TIMER_CH1, 1);
+    TurnPinTimer.setPeriod(30);
+    TurnPinTimer.pause();
+#else
+    TurnPinTimer = new HardwareTimer(TIM1);
     TurnPinTimer->setMode(1, TIMER_OUTPUT_COMPARE);
-    TurnPinTimer->setPrescaleFactor(TurnPinTimer->getTimerClkFreq() / 1000000);
-    TurnPinTimer->setOverflow(24);
-    TurnPinTimer->setPreloadEnable(false);
+    TurnPinTimer->setCaptureCompare(1, 1, MICROSEC_COMPARE_FORMAT);
+    TurnPinTimer->setOverflow(30, MICROSEC_FORMAT);
     TurnPinTimer->pause();
 
+    ExecuteStepTimer = new HardwareTimer(EXECUTE_STEP_TIMER);
     ExecuteStepTimer->setMode(1, TIMER_OUTPUT_COMPARE);
+    ExecuteStepTimer->setCaptureCompare(1, 1);
     ExecuteStepTimer->setPrescaleFactor(ExecuteStepTimer->getTimerClkFreq() / 1000000);
-    ExecuteStepTimer->setOverflow(1000);
-    ExecuteStepTimer->setPreloadEnable(false);
+    ExecuteStepTimer->setOverflow(65000);
     ExecuteStepTimer->pause();
+#endif
 }
 
 // func eeprom -------------------------------------------------------------
@@ -51,9 +63,7 @@ void Conveyor::save_data()
     EEPROM.update(IS_CONVEYOR_MODE_ADDRESS, conveyor_mode);
     putFloatToEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
     EEPROM.update(IS_RUN_WITH_ENCODER_ADDRESS, is_run_with_encoder);
-
     putFloatToEeprom(CONVEYOR_ACCEL_ADDRESS, current_accel);
-
     putFloatToEeprom(SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS, speed_when_run_with_button);
 }
 
@@ -83,7 +93,11 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
 {
     if (_speed == 0)
     {
+#if defined(__STM32F1__)
+        ExecuteStepTimer.pause();
+#else
         ExecuteStepTimer->pause();
+#endif
         return;
     }
     current_period = 1000000.0 / (_speed * pulse_per_mm);
@@ -91,10 +105,12 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
     {
         current_period = MIN_STEP_TIMER_PERIOD;
     }
-    
-    ExecuteStepTimer->pause();
-    ExecuteStepTimer->setOverflow(current_period);
-    ExecuteStepTimer->resume();
+
+#if defined(__STM32F1__)
+    ExecuteStepTimer.setPeriod(current_period);
+#else
+    ExecuteStepTimer->setOverflow(current_period, MICROSEC_FORMAT);
+#endif
 }
 
 void Conveyor::__execute_vel()
@@ -133,7 +149,7 @@ void Conveyor::__execute_pos()
     {
         pulse_for_accel = int(total_pulse / 2);
     }
-    
+
     if (pulse_counter == total_pulse - pulse_for_accel)
     {
         execute_speed(min_speed);
@@ -141,10 +157,13 @@ void Conveyor::__execute_pos()
 
     if (pulse_counter == total_pulse)
     {
-        // setVelocity(0);
+#if defined(__STM32F1__)
+        ExecuteStepTimer.pause();
+#else
+        ExecuteStepTimer->pause();
+#endif
         current_position = desire_position;
         pulse_counter = 0;
-        ExecuteStepTimer->pause();
         control_port.send_done();
     }
 }
@@ -167,7 +186,7 @@ void Conveyor::execute_speed(float _speed)
         current_accel = -abs(current_accel);
     }
 
-    if (current_speed == 0 )
+    if (current_speed == 0)
     {
         current_speed = min_speed;
         if (current_accel == 0)
@@ -176,7 +195,11 @@ void Conveyor::execute_speed(float _speed)
         }
         time_count = 0;
         setTimerPeriodFromSpeed(current_speed);
+#if defined(__STM32F1__)
+        ExecuteStepTimer.resume();
+#else
         ExecuteStepTimer->resume();
+#endif
     }
 }
 
@@ -195,7 +218,11 @@ void Conveyor::init()
 void Conveyor::__timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, LOW);
-    TurnPinTimer->resume();
+#if defined(__STM32F1__)
+    ExecuteStepTimer.resume();
+#else
+    ExecuteStepTimer->resume();
+#endif
 
     switch (conveyor_mode)
     {
@@ -219,8 +246,13 @@ void Conveyor::__timer_handle()
 void Conveyor::__tp_timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, HIGH);
+#if defined(__STM32F1__)
+    TurnPinTimer.resume();
+#else
+    TurnPinTimer->resume();
+#endif
 }
-                        
+
 void Conveyor::setConveyorMode(uint8_t _enable)
 {
     if ((CONVEYOR_MODE)_enable == conveyor_mode)
@@ -229,9 +261,13 @@ void Conveyor::setConveyorMode(uint8_t _enable)
     }
     conveyor_mode = (CONVEYOR_MODE)_enable;
 
+#if defined(__STM32F1__)
+    ExecuteStepTimer.pause();
+    TurnPinTimer.pause();
+#else
     ExecuteStepTimer->pause();
     TurnPinTimer->pause();
-
+#endif
     digitalWrite(MOTOR_EN_PIN, HIGH);
 
     current_position = 0;
@@ -284,7 +320,7 @@ void Conveyor::setPosition(float _pos)
     {
         digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
     }
-    
+
     current_speed = 0;
     pulse_for_accel = 0;
 
@@ -321,7 +357,11 @@ void Conveyor::stopPosition()
 {
     current_speed = 0;
     current_position += (pulse_counter / pulse_per_mm) * (desire_position - current_position) / abs(desire_position - current_position);
+#if defined(__STM32F1__)
+    ExecuteStepTimer.pause();
+#else
     ExecuteStepTimer->pause();
+#endif
 }
 
 void Conveyor::setAccel(float _accel)
@@ -340,11 +380,11 @@ void Conveyor::setOutput(uint8_t _pin, uint8_t _value)
         digitalWrite(MOTOR_PUL_PIN, _value);
     }
     else if (_pin == 1)
-    {    
+    {
         digitalWrite(MOTOR_DIR_PIN, _value);
     }
     else if (_pin == 2)
-    {    
+    {
         digitalWrite(MOTOR_EN_PIN, _value);
     }
 }
@@ -375,7 +415,7 @@ void Conveyor::increaseSpeedFromButton()
     {
         return;
     }
-    current_vel_button += 10;
+    current_vel_button += 5;
     setVelocity(current_vel_button);
 }
 
@@ -385,7 +425,7 @@ void Conveyor::decreaseSpeedFromButton()
     {
         return;
     }
-    current_vel_button -= 10;
+    current_vel_button -= 5;
     setVelocity(current_vel_button);
 }
 

@@ -7,3 +7,5 @@
 ```
 
 ## 2. Before running `test_ethernet.py`, you have to install `PySide6` package by commands `pip install PySide6`.
+
+## 3. Seem like the Ethernet_STM.h of maple not working with the W5500 Ethernet chip.
