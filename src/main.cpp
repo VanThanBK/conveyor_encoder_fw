@@ -36,8 +36,8 @@ void setup()
   encoder.init();
   conveyor.init();
 
-  conveyor.ExecuteStepTimer->attachInterrupt(1, interrupt_timer_handle);
-  conveyor.TurnPinTimer->attachInterrupt(1, interrupt_tp_timer_handle);
+  conveyor.ExecuteStepTimer->attachInterrupt(interrupt_timer_handle);
+  conveyor.TurnPinTimer->attachInterrupt(interrupt_tp_timer_handle);
   
 #endif
 }

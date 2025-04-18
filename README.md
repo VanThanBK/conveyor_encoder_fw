@@ -9,3 +9,5 @@
 ## 2. Before running `test_ethernet.py`, you have to install `PySide6` package by commands `pip install PySide6`.
 
 ## 3. Seem like the Ethernet_STM.h of maple not working with the W5500 Ethernet chip.
+
+## 4. The default SERVO_TIMER, TONE_TIMER are the same as EXECUTE_STEP_TIMER, TURN_PIN_TIMER, so change SERVO_TIMER to TIM1 and disable TONE_TIMER may solve the problem.

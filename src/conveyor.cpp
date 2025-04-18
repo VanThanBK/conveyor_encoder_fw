@@ -26,7 +26,7 @@ void Conveyor::timerInit()
     TurnPinTimer.setPeriod(30);
     TurnPinTimer.pause();
 #else
-    TurnPinTimer = new HardwareTimer(TIM1);
+    TurnPinTimer = new HardwareTimer(TURN_PIN_TIMER);
     TurnPinTimer->setMode(1, TIMER_OUTPUT_COMPARE);
     TurnPinTimer->setCaptureCompare(1, 1, MICROSEC_COMPARE_FORMAT);
     TurnPinTimer->setOverflow(30, MICROSEC_FORMAT);
@@ -38,6 +38,8 @@ void Conveyor::timerInit()
     ExecuteStepTimer->setPrescaleFactor(ExecuteStepTimer->getTimerClkFreq() / 1000000);
     ExecuteStepTimer->setOverflow(65000);
     ExecuteStepTimer->pause();
+
+    USBPort.println("Timer clk freq: " + String(TurnPinTimer->getTimerClkFreq()));
 #endif
 }
 
@@ -109,7 +111,7 @@ void Conveyor::setTimerPeriodFromSpeed(float _speed)
 #if defined(__STM32F1__)
     ExecuteStepTimer.setPeriod(current_period);
 #else
-    ExecuteStepTimer->setOverflow(current_period, MICROSEC_FORMAT);
+    ExecuteStepTimer->setOverflow(current_period);
 #endif
 }
 
@@ -219,9 +221,9 @@ void Conveyor::__timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, LOW);
 #if defined(__STM32F1__)
-    ExecuteStepTimer.resume();
+    TurnPinTimer.resume();
 #else
-    ExecuteStepTimer->resume();
+    TurnPinTimer->resume();
 #endif
 
     switch (conveyor_mode)
@@ -247,9 +249,9 @@ void Conveyor::__tp_timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, HIGH);
 #if defined(__STM32F1__)
-    TurnPinTimer.resume();
+    TurnPinTimer.pause();
 #else
-    TurnPinTimer->resume();
+    TurnPinTimer->pause();
 #endif
 }
 
