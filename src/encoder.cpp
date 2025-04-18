@@ -40,7 +40,7 @@ void Encoder::init()
     AutoFeedbackTimer->setCaptureCompare(1, 1, MICROSEC_COMPARE_FORMAT);
     AutoFeedbackTimer->setOverflow(1000000, MICROSEC_FORMAT);
     AutoFeedbackTimer->pause();
-    AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
+    AutoFeedbackTimer->attachInterrupt(interrupt_auto_timer_handle);
 #endif
 
     a_input_state = digitalRead(a_pin_encoder);
