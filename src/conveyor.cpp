@@ -38,8 +38,6 @@ void Conveyor::timerInit()
     ExecuteStepTimer->setPrescaleFactor(ExecuteStepTimer->getTimerClkFreq() / 1000000);
     ExecuteStepTimer->setOverflow(65000);
     ExecuteStepTimer->pause();
-
-    USBPort.println("Timer clk freq: " + String(TurnPinTimer->getTimerClkFreq()));
 #endif
 }
 

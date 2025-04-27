@@ -5,18 +5,17 @@ void communication::init_eth()
     SPI.setBitOrder(MSBFIRST);
     SPI.setDataMode(SPI_MODE0);
 #if !defined(__STM32F1__)
+    SPI.setMISO(PIN_SPI_MISO);
+    SPI.setMOSI(PIN_SPI_MOSI);
+    SPI.setSCLK(PIN_SPI_SCK);
+    SPI.setSSEL(PIN_SPI_SS);
+    SPI.begin();
+
     Ethernet.init(PIN_SPI_SS);
 #else
     Ethernet.init(BOARD_SPI1_NSS_PIN);
 #endif
     eth_server = new EthernetServer(ethernet_port);
-
-    ethernet_mac[0] = 0xDE;
-    ethernet_mac[1] = 0xAD;
-    ethernet_mac[2] = 0xBE;
-    ethernet_mac[3] = 0xEF;
-    ethernet_mac[4] = 0xFE;
-    ethernet_mac[5] = 0x12;
 
     if (Ethernet.begin(ethernet_mac) == 0)
     {
@@ -39,7 +38,8 @@ void communication::init_eth()
     eth_server->begin();
     delay(10);
     ethernet_infor = "Ethernet init success!";
-	Ethernet.maintain();
+    USBPort.println(Ethernet.localIP().toString());
+	// Ethernet.maintain();
 }
 
 void communication::save_eth()
@@ -241,7 +241,7 @@ void communication::send_ethernet_ip()
 
 void communication::reset_eth_ips()
 {
-    ethernet_port = 80;
+    ethernet_port = 8844;
     ethernet_ip = IPAddress(0, 0, 0, 0);
     ethernet_dns = IPAddress(0, 0, 0, 0);
     ethernet_gateway = IPAddress(0, 0, 0, 0);
@@ -251,7 +251,7 @@ void communication::reset_eth_ips()
     ethernet_mac[2] = 0xBE;
     ethernet_mac[3] = 0xEF;
     ethernet_mac[4] = 0xFE;
-    ethernet_mac[5] = 0xED;
+    ethernet_mac[5] = 50;
     save_eth();
     init_eth();
 }
