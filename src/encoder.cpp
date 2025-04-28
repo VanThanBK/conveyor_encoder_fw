@@ -4,17 +4,17 @@
 // func interrupt for encoder
 void interrupt_channel_a_handel()
 {
-    encoder.__encoder_handle(CHANNEL_A);
+    encoder.encoder_handle(CHANNEL_A);
 }
 
 void interrupt_channel_b_handel()
 {
-    encoder.__encoder_handle(CHANNEL_B);
+    encoder.encoder_handle(CHANNEL_B);
 }
 
 void interrupt_auto_timer_handle()
 {
-    encoder.__timer_fb_handle();
+    control_port.send_encoder_pos();
 }
 
 //------------------------------------------------------------------
@@ -28,20 +28,14 @@ void Encoder::init()
     pinInit();
     attachInterruptEncoderPin();
 
-    // AutoFeedbackTimer.setPeriod(24);
-    // AutoFeedbackTimer.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    // AutoFeedbackTimer.setCompare(TIMER_CH1, 1);
-    // AutoFeedbackTimer.pause();
-
-    // AutoFeedbackTimer.attachInterrupt(TIMER_CH1, interrupt_auto_timer_handle);
-
     AutoFeedbackTimer = new HardwareTimer(TIM2);
     AutoFeedbackTimer->setMode(1, TIMER_OUTPUT_COMPARE);
     AutoFeedbackTimer->setPrescaleFactor(AutoFeedbackTimer->getTimerClkFreq() / 1000000);
-    AutoFeedbackTimer->setOverflow(1000);
+    AutoFeedbackTimer->setOverflow(1000, MICROSEC_FORMAT);
+    AutoFeedbackTimer->setPreloadEnable(0);
     AutoFeedbackTimer->pause();
 
-    AutoFeedbackTimer->attachInterrupt(1, interrupt_auto_timer_handle);
+    AutoFeedbackTimer->attachInterrupt(interrupt_auto_timer_handle);
 
     a_input_state = digitalRead(a_pin_encoder);
     b_input_state = digitalRead(b_pin_encoder);
@@ -93,7 +87,7 @@ void Encoder::attachInterruptEncoderPin()
     }
 }
 
-void Encoder::__encoder_handle(uint8_t _channel)
+void Encoder::encoder_handle(uint8_t _channel)
 {
     if (encoder_mode == AS_INPUT_PIN)
     {
@@ -238,10 +232,11 @@ void Encoder::__encoder_handle(uint8_t _channel)
     }
 }
 
-void Encoder::__timer_fb_handle()
+void Encoder::timer_fb_handle()
 {
+    String _mes = "P0:";
     float _pos = getPosition();
-    String _mes = "P0:" + String(_pos, 2);
+    _mes += String(_pos, 2);
     control_port.response(_mes);
 }
 
@@ -291,6 +286,8 @@ void Encoder::setTimeAutoFeedback(uint16_t _time)
         return;
     }
     time_auto_feedback = _time;
+
+    AutoFeedbackTimer->pause();
     AutoFeedbackTimer->setOverflow(_time * 1000, MICROSEC_FORMAT);
     AutoFeedbackTimer->resume();
 }

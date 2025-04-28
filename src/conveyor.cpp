@@ -189,7 +189,7 @@ void Conveyor::init()
     timerInit();
 }
 
-void Conveyor::__timer_handle()
+void Conveyor::timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, LOW);
     TurnPinTimer->resume();
@@ -213,7 +213,7 @@ void Conveyor::__timer_handle()
     }
 }
 
-void Conveyor::__tp_timer_handle()
+void Conveyor::tp_timer_handle()
 {
     digitalWrite(MOTOR_PUL_PIN, HIGH);
 }

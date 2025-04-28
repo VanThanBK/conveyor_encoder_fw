@@ -26,6 +26,9 @@
 #define CAN_MOSI_PIN PB15
 #define CAN_SCK_PIN PB13
 
+#define USB_TX_PIN PA9
+#define USB_RX_PIN PA10
+
 #define TX2_PIN PA2
 #define RX2_PIN PA3
 

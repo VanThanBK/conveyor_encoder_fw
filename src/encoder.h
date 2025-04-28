@@ -45,7 +45,8 @@ typedef enum
 
 class Encoder
 {
-private:
+    
+public:
     //encoder pin array
     uint8_t a_pin_encoder;
     uint8_t b_pin_encoder;
@@ -78,10 +79,10 @@ private:
 
     long last_time_button_start;
     long last_time_button_stop;
-public:
+
     void init();
-    void __encoder_handle(uint8_t _channel);
-    void __timer_fb_handle();
+    void encoder_handle(uint8_t _channel);
+    void timer_fb_handle();
 
     void setEncoderMode(uint8_t _enable);
     void setPulsePerMm(float _pulse);

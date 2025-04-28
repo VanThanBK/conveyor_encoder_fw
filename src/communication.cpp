@@ -6,7 +6,8 @@ void communication::init_eth()
     SPI.setDataMode(SPI_MODE0);
     Ethernet.init(PIN_SPI_SS);
     eth_server = new EthernetServer(ethernet_port);
-    int eth_init = Ethernet.begin(ethernet_mac);
+    int eth_init = 0;
+    eth_init = Ethernet.begin(ethernet_mac);
     if (eth_init == 1)
     {
         USBPort.println("Ethernet init success!");
@@ -286,6 +287,8 @@ void communication::send_input_b_state()
 
 void communication::init()
 {
+    USBPort.setTx(USB_TX_PIN);
+    USBPort.setRx(USB_RX_PIN);
     USBPort.begin(115200);
     USBPort.setTimeout(5);
 
@@ -592,8 +595,8 @@ void communication::execute()
         if (index_value > 0 && _value1[0] == 'T')
         {
             int _time_response = _value1.substring(1).toInt();
-            encoder.setTimeAutoFeedback(_time_response);
             send_done();
+            encoder.setTimeAutoFeedback(_time_response);
         }
         else if (index_value > 0 && _value1[0] == 'R')
         {

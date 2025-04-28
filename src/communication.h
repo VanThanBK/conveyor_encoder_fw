@@ -12,11 +12,11 @@
 #include <Ethernet.h>
 #include <SPI.h>
 
-#define USBPort Serial1
+#define USBPort Serial
 
 class communication
 {
-private:
+public:
     enum COM_Port {
         usb_port = 0,
         eth_port
@@ -64,7 +64,7 @@ private:
 
     void save_string(uint16_t _address, String _str);
     void load_string(uint16_t _address, String &_str);
-public:
+
     void init();
     void execute();
     void response(String _mes);

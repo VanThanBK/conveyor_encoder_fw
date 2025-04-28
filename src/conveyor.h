@@ -29,7 +29,6 @@ typedef enum
 
 class Conveyor
 {
-private:
     /* data */
     float current_position;
     float current_speed;
@@ -72,8 +71,8 @@ private:
     
 public:
     void init();
-    void __timer_handle();
-    void __tp_timer_handle();
+    void timer_handle();
+    void tp_timer_handle();
 
     void setConveyorMode(uint8_t _enable);
     void setReverseConveyor(bool _dir);
