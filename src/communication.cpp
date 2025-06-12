@@ -41,7 +41,8 @@ void communication::init_eth()
 void communication::save_eth()
 {
     EEPROM.update(ETHERNET_ENABLE_ADDRESS, is_enable_eth);
-    EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port);
+    EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port & 0xFF);
+    EEPROM.update(ETHERNET_PORT_ADDRESS + 1, (ethernet_port >> 8) & 0xFF);
 
     EEPROM.update(ETHERNET_IP_ADDRESS, ethernet_ip[0]);
     EEPROM.update(ETHERNET_IP_ADDRESS + 1, ethernet_ip[1]);
@@ -75,7 +76,7 @@ void communication::save_eth()
 void communication::load_eth()
 {
     is_enable_eth = EEPROM.read(ETHERNET_ENABLE_ADDRESS);
-    ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS);
+    ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS) | (EEPROM.read(ETHERNET_PORT_ADDRESS + 1) << 8);
 
     ethernet_ip[0] = EEPROM.read(ETHERNET_IP_ADDRESS);
     ethernet_ip[1] = EEPROM.read(ETHERNET_IP_ADDRESS + 1);
@@ -316,10 +317,10 @@ void communication::init()
     delay(100);
     digitalWrite(ETH_RESET_PIN, 1);
     delay(100);
+    load_eth();
 
     if (is_enable_eth)
     {
-        load_eth();
         init_eth();
     }
 
