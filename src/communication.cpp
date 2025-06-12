@@ -2,50 +2,59 @@
 
 void communication::init_eth()
 {
-    SPI.setBitOrder(MSBFIRST);
-    SPI.setDataMode(SPI_MODE0);
+    // SPI.setBitOrder(MSBFIRST);
+    // SPI.setDataMode(SPI_MODE0);
 #if !defined(__STM32F1__)
-    SPI.setMISO(PIN_SPI_MISO);
-    SPI.setMOSI(PIN_SPI_MOSI);
-    SPI.setSCLK(PIN_SPI_SCK);
-    SPI.setSSEL(PIN_SPI_SS);
+    // SPI.setMISO(PIN_SPI_MISO);
+    // SPI.setMOSI(PIN_SPI_MOSI);
+    // SPI.setSCLK(PIN_SPI_SCK);
+    // SPI.setSSEL(PIN_SPI_SS);
     SPI.begin();
 
     Ethernet.init(PIN_SPI_SS);
 #else
     Ethernet.init(BOARD_SPI1_NSS_PIN);
 #endif
+    enable_rj45();
+}
+
+void communication::enable_rj45()
+{
     eth_server = new EthernetServer(ethernet_port);
 
-    if (Ethernet.begin(ethernet_mac) == 0)
+    if (ethernet_ip == IPAddress(0, 0, 0, 0))
     {
-        USBPort.println("Failed to configure Ethernet using DHCP");
-        if (Ethernet.linkStatus() == LinkOFF)
-        {
-            USBPort.println("LinkOFF:Ethernet cable is not connected!");
-        }
-        if (Ethernet.linkStatus() == Unknown)
-        {
-            USBPort.println("Unknown:Ethernet cable is not connected!");
-        }
-        if (Ethernet.hardwareStatus() == EthernetNoHardware)
-        {
-            USBPort.println("Unknown:Ethernet hardware error!");
-        }
+        Ethernet.begin(ethernet_mac);
+    }
+    else
+    {
         Ethernet.begin(ethernet_mac, ethernet_ip, ethernet_dns, ethernet_gateway, ethernet_subnet);
     }
 
     eth_server->begin();
-    delay(10);
-    ethernet_infor = "Ethernet init success!";
+
+    if (Ethernet.hardwareStatus() == EthernetNoHardware)
+    {
+        USBPort.println("Unknown:Ethernet hardware error!");
+        return;
+    }
+
+    if (Ethernet.linkStatus() == LinkOFF)
+    {
+        USBPort.println("Unknown:Ethernet cable is not connected!");
+        return;
+    }
+
+    USBPort.println("Ethernet init success!");
     USBPort.println(Ethernet.localIP().toString());
-	// Ethernet.maintain();
+    Ethernet.maintain();
 }
 
 void communication::save_eth()
 {
     EEPROM.update(IS_ETH_ENABLE_ADDRESS, is_eth_enable);
-    EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port);
+    EEPROM.update(ETHERNET_PORT_ADDRESS, ethernet_port & 0xFF);
+    EEPROM.update(ETHERNET_PORT_ADDRESS + 1, (ethernet_port >> 8) & 0xFF);
 
     EEPROM.update(ETHERNET_IP_ADDRESS, ethernet_ip[0]);
     EEPROM.update(ETHERNET_IP_ADDRESS + 1, ethernet_ip[1]);
@@ -79,7 +88,7 @@ void communication::save_eth()
 void communication::load_eth()
 {
     is_eth_enable = EEPROM.read(IS_ETH_ENABLE_ADDRESS);
-    ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS);
+    ethernet_port = EEPROM.read(ETHERNET_PORT_ADDRESS) | (EEPROM.read(ETHERNET_PORT_ADDRESS + 1) << 8);
 
     ethernet_ip[0] = EEPROM.read(ETHERNET_IP_ADDRESS);
     ethernet_ip[1] = EEPROM.read(ETHERNET_IP_ADDRESS + 1);
@@ -305,8 +314,9 @@ void communication::init()
     digitalWrite(ETH_RESET_PIN, 0);
     delay(100);
     digitalWrite(ETH_RESET_PIN, 1);
-    delay(100);
-    if (is_eth_enable) {
+    delay(1200);
+    if (is_eth_enable)
+    {
         init_eth();
     }
 
@@ -414,6 +424,14 @@ void communication::execute()
         send_ethernet_ip();
         gcode = "";
         return;
+    }
+
+    else if (gcode == "Reset")
+    {
+        USBPort.println("XConveyor Reset");
+        gcode = "";
+        delay(100);
+        NVIC_SystemReset();
     }
 
     String splitWord = "";
@@ -630,10 +648,11 @@ void communication::execute()
 
     // eth setting
 
-    else if (keyValue == "M389") 
+    else if (keyValue == "M389")
     {
         is_eth_enable = _value1.toInt();
-        if (is_eth_enable) {
+        if (is_eth_enable)
+        {
             init_eth();
         }
         save_eth();

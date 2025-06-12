@@ -50,6 +50,7 @@ private:
     String ethernet_infor;
 
     void init_eth();
+    void enable_rj45();
     void save_eth();
     void load_eth();
 
