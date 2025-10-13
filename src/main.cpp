@@ -46,4 +46,5 @@ void loop()
 {
   control_port.execute();
   encoder.execute();
+  // delay(1000);
 }
