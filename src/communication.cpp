@@ -45,6 +45,12 @@ void communication::enable_rj45()
         return;
     }
 
+    if (Ethernet.linkStatus() == Unknown)
+    {
+        USBPort.println("Unknown:Ethernet cable is not connected!!");
+        return;
+    }
+
     USBPort.println("Ethernet init success!");
     USBPort.println(Ethernet.localIP().toString());
     Ethernet.maintain();
@@ -165,7 +171,11 @@ void communication::send_done()
     }
     else
     {
-        eth_client.println("Ok");
+        if (eth_client && eth_client.connected()) {
+            eth_client.write((const uint8_t*)"Ok\r\n", sizeof("Ok\r\n") - 1);
+        } else {
+            USBPort.println("[ETH] not connected");
+        }
     }
 }
 
@@ -310,11 +320,6 @@ void communication::init()
     is_string_complete = false;
     receive_string = "";
 
-    pinMode(ETH_RESET_PIN, OUTPUT);
-    digitalWrite(ETH_RESET_PIN, 0);
-    delay(100);
-    digitalWrite(ETH_RESET_PIN, 1);
-    delay(1200);
     if (is_eth_enable)
     {
         init_eth();
@@ -344,8 +349,15 @@ void communication::execute()
         }
     }
 
-    eth_client = eth_server->available();
-    if (eth_client)
+    EthernetClient c = eth_server->available();
+    if (c) {
+        if (!(eth_client && eth_client.connected())) {
+            eth_client.stop();
+            eth_client = c;
+        }
+    }
+
+    if (eth_client && eth_client.connected())
     {
         while (eth_client.available())
         {
