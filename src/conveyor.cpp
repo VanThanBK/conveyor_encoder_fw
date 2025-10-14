@@ -46,6 +46,8 @@ void Conveyor::getFloatFromEeprom(uint16_t address, float &floatin)
 
 void Conveyor::save_data()
 {
+    EEPROM.update(CONVEYOR_ADDRESS, conveyor_address & 0xFF);
+    EEPROM.update(CONVEYOR_ADDRESS + 1, conveyor_address >> 8);
     EEPROM.update(REVERSE_CONVEYOR_ADDRESS, reverse_conveyor);
     EEPROM.update(IS_CONVEYOR_MODE_ADDRESS, conveyor_mode);
     putFloatToEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
@@ -56,6 +58,7 @@ void Conveyor::save_data()
 
 void Conveyor::load_data()
 {
+    conveyor_address = EEPROM.read(CONVEYOR_ADDRESS) | (EEPROM.read(CONVEYOR_ADDRESS + 1) << 8);
     max_speed = DEFAULT_MAX_SPEED;
     reverse_conveyor = (bool)EEPROM.read(REVERSE_CONVEYOR_ADDRESS);
     conveyor_mode = (CONVEYOR_MODE)EEPROM.read(IS_CONVEYOR_MODE_ADDRESS);
@@ -126,9 +129,9 @@ void Conveyor::__execute_pos()
     {
         pulse_for_accel = pulse_counter;
     }
-    else if ((pulse_counter >= (uint16_t)(total_pulse / 2)) && pulse_for_accel == 0)
+    else if ((pulse_counter >= (total_pulse / 2u)) && pulse_for_accel == 0)
     {
-        pulse_for_accel = int(total_pulse / 2);
+        pulse_for_accel = int(total_pulse / 2u);
     }
     
     if (pulse_counter == total_pulse - pulse_for_accel)
@@ -376,5 +379,12 @@ void Conveyor::execute()
         }
     }
 }
+
+void Conveyor::setAddress(uint16_t _address)
+{
+    conveyor_address = _address;
+    save_data();
+}
+
 
 Conveyor conveyor;
