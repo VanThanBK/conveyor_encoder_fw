@@ -14,7 +14,7 @@ void interrupt_channel_b_handel()
 
 void interrupt_auto_timer_handle()
 {
-    encoder.__timer_fb_handle();
+    encoder.is_need_send_encoder_pos = true;
 }
 
 //------------------------------------------------------------------
@@ -237,7 +237,7 @@ void Encoder::__encoder_handle(uint8_t _channel)
     }
 }
 
-void Encoder::__timer_fb_handle()
+void Encoder::send_encoder_pos()
 {
     float _pos = getPosition();
     String _mes = "P0:" + String(_pos, 2);
@@ -439,6 +439,12 @@ void Encoder::setStopInputAutoFeecback(uint8_t index)
 
 void Encoder::execute()
 {
+    if (is_need_send_encoder_pos)
+    {
+        is_need_send_encoder_pos = false;
+        send_encoder_pos();
+    }
+
     if (encoder_mode == AS_INPUT_PIN)
     {
         if (micros() - last_time_auto_feedback < TIMER_PERIOD_FEEDBACK)

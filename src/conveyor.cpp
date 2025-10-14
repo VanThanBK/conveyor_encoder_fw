@@ -148,9 +148,9 @@ void Conveyor::__execute_pos()
     {
         pulse_for_accel = pulse_counter;
     }
-    else if ((pulse_counter >= (uint16_t)(total_pulse / 2)) && pulse_for_accel == 0)
+    else if ((pulse_counter >= (total_pulse / 2U)) && pulse_for_accel == 0)
     {
-        pulse_for_accel = int(total_pulse / 2);
+        pulse_for_accel = int(total_pulse / 2U);
     }
 
     if (pulse_counter == total_pulse - pulse_for_accel)
@@ -167,7 +167,7 @@ void Conveyor::__execute_pos()
 #endif
         current_position = desire_position;
         pulse_counter = 0;
-        control_port.send_done();
+        is_need_send_done = true;
     }
 }
 
@@ -442,6 +442,15 @@ void Conveyor::setAddress(uint16_t _address)
 {
     conveyor_address = _address;
     save_data();
+}
+
+void Conveyor::execute()
+{
+    if (is_need_send_done)
+    {
+        control_port.send_done();
+        is_need_send_done = false;
+    }
 }
 
 Conveyor conveyor;

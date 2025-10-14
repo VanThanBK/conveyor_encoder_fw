@@ -65,6 +65,8 @@ public:
     void decreaseSpeedFromButton();
     void setVelocityButton(float _speed);
 
+    void execute();
+
     uint16_t conveyor_address;
 
     float pulse_per_mm;
@@ -99,6 +101,8 @@ private:
     uint32_t total_pulse;
 
     float speed_when_run_with_button;
+
+    volatile bool is_need_send_done = false;
 
     void pinInit();
     void timerInit();
