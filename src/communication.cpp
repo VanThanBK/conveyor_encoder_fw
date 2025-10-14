@@ -154,9 +154,12 @@ void communication::send_done()
     }
     else
     {
-        if (eth_client && eth_client.connected()) {
-            eth_client.write((const uint8_t*)"Ok\r\n", sizeof("Ok\r\n") - 1);
-        } else {
+        if (eth_client && eth_client.connected())
+        {
+            eth_client.write((const uint8_t *)"Ok\r\n", sizeof("Ok\r\n") - 1);
+        }
+        else
+        {
             USBPort.println("[ETH] not connected");
         }
     }
@@ -309,7 +312,7 @@ void communication::init()
     ethernet_mac[3] = 0xEF;
     ethernet_mac[4] = 0xFE;
     ethernet_mac[5] = 0x13;
-    
+
     load_eth();
     if (is_enable_eth)
     {
@@ -401,7 +404,7 @@ void communication::execute()
     {
         String keyString = gcode.substring(0, index_gcode);
         String valueString = gcode.substring(index_gcode + 1);
-        if(keyString == "Address")
+        if (keyString == "Address")
         {
             uint16_t _address = valueString.toInt();
             conveyor.setAddress(_address);
@@ -786,7 +789,14 @@ void communication::response(String _mes)
     }
     else
     {
-        eth_server->println(_mes);
+        if (eth_client && eth_client.connected())
+        {
+            eth_client.println(_mes);
+        }
+        else
+        {
+            USBPort.println("[ETH] not connected");
+        }
     }
 }
 

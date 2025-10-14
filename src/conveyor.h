@@ -103,6 +103,8 @@ public:
     CONVEYOR_MODE conveyor_mode;
     bool is_run_with_encoder;
 
+    volatile bool is_need_send_done;
+
     bool is_auto_run_speed;
     float auto_run_speed;
     float max_speed;

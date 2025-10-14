@@ -14,7 +14,7 @@ void interrupt_channel_b_handel()
 
 void interrupt_auto_timer_handle()
 {
-    control_port.send_encoder_pos();
+    encoder.is_need_send_encoder_pos = true;
 }
 
 //------------------------------------------------------------------
@@ -76,7 +76,6 @@ void Encoder::attachInterruptEncoderPin()
 
         attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), interrupt_channel_a_handel, RISING);
         attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), interrupt_channel_b_handel, RISING);
-        
     }
     else if (encoder_scale == SCALE_X4)
     {
@@ -420,13 +419,19 @@ void Encoder::setStopInputAutoFeecback(uint8_t index)
 
 void Encoder::execute()
 {
+    if (is_need_send_encoder_pos)
+    {
+        is_need_send_encoder_pos = false;
+        control_port.send_encoder_pos();
+    }
+
     if (encoder_mode == AS_INPUT_PIN)
     {
         if (micros() - last_time_auto_feedback < TIMER_PERIOD_FEEDBACK)
         {
             return;
         }
-        
+
         last_time_auto_feedback = micros();
 
         if (a_input_state != a_input_state_last && is_auto_feedback_a == true)
