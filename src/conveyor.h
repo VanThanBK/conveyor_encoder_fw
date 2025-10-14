@@ -85,8 +85,8 @@ public:
     void stopPosition();
 
     void setAccel(float _accel);
-
     void setOutput(uint8_t _pin, uint8_t _value);
+    void setAddress(uint16_t _address);
 
     // void startFromButton();
     // void stopFromButton();
@@ -96,10 +96,14 @@ public:
 
     void execute();
 
+    uint16_t conveyor_address = 1;
+
     float pulse_per_mm;
     bool reverse_conveyor;
     CONVEYOR_MODE conveyor_mode;
     bool is_run_with_encoder;
+
+    volatile bool is_need_send_done;
 
     bool is_auto_run_speed;
     float auto_run_speed;

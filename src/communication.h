@@ -43,11 +43,7 @@ public:
 	byte ethernet_mac[6];
     String ethernet_infor;
 
-    String device_name = String(DEFAULT_DEVICE_NAME);
-    String UUID = String(DEFAULT_UUID);
-    String firmware_version = String(DEFAULT_FIRMWARE_VERSION);
-    String board_version = String(DEFAULT_BOARD_VERSION);
-    String serial_number = String(DEFAULT_SERIAL_NUMBER);
+    String firmware_date = FIRMWARE_DATE;
 
     bool is_enable_eth;
     void init_eth();

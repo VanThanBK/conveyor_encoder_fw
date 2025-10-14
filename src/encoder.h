@@ -2,9 +2,9 @@
 #define _ENCODER_h
 
 #if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
+#include "arduino.h"
 #else
-	#include "WProgram.h"
+#include "WProgram.h"
 #endif
 
 #include <EEPROM.h>
@@ -14,12 +14,12 @@
 
 // #define AutoFeedbackTimer Timer2
 
-//scale of encoder pulse
+// scale of encoder pulse
 #define SCALE_X1 1
 #define SCALE_X2 2
 #define SCALE_X4 4
 
-//channel in encoder
+// channel in encoder
 #define CHANNEL_A 0
 #define CHANNEL_B 1
 
@@ -45,22 +45,22 @@ typedef enum
 
 class Encoder
 {
-    
+
 public:
-    //encoder pin array
+    // encoder pin array
     uint8_t a_pin_encoder;
     uint8_t b_pin_encoder;
 
-    int32_t pulse_counter;  //encoder pulse counter
+    int32_t pulse_counter; // encoder pulse counter
     int32_t last_relative_pulse_counter;
-    float current_position;  //current angle of robot rf arm
+    float current_position; // current angle of robot rf arm
     float last_relative_position;
 
     bool a_input_state;
     bool b_input_state;
     bool a_input_state_last;
     bool b_input_state_last;
-    
+
     bool is_auto_feedback_a;
     bool is_auto_feedback_b;
 
@@ -112,9 +112,11 @@ public:
     uint16_t time_auto_feedback;
     float max_speed;
 
+    volatile bool is_need_send_encoder_pos;
+
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;
-    HardwareTimer* AutoFeedbackTimer;
+    HardwareTimer *AutoFeedbackTimer;
 };
 
 extern Encoder encoder;
