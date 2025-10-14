@@ -87,7 +87,7 @@ private:
 public:
     void init();
     void __encoder_handle(uint8_t _channel);
-    void __timer_fb_handle();
+    void send_encoder_pos();
 
     void setEncoderMode(uint8_t _enable);
     void setPulsePerMm(float _pulse);
@@ -118,6 +118,8 @@ public:
 
     BUTTON_TYPE button_start;
     BUTTON_TYPE button_stop;
+
+    volatile bool is_need_send_encoder_pos;
 
 #if !defined(__STM32F1__)
     HardwareTimer *AutoFeedbackTimer;

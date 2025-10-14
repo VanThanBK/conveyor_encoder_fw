@@ -46,5 +46,6 @@ void loop()
 {
   control_port.execute();
   encoder.execute();
+  conveyor.execute();
   // delay(1000);
 }
