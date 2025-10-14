@@ -59,6 +59,8 @@ void Conveyor::getFloatFromEeprom(uint16_t address, float &floatin)
 
 void Conveyor::save_data()
 {
+    EEPROM.update(CONVEYOR_ADDRESS, conveyor_address & 0xFF);
+    EEPROM.update(CONVEYOR_ADDRESS + 1, conveyor_address >> 8);
     EEPROM.update(REVERSE_CONVEYOR_ADDRESS, reverse_conveyor);
     EEPROM.update(IS_CONVEYOR_MODE_ADDRESS, conveyor_mode);
     putFloatToEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
@@ -69,6 +71,7 @@ void Conveyor::save_data()
 
 void Conveyor::load_data()
 {
+    conveyor_address = EEPROM.read(CONVEYOR_ADDRESS) | (EEPROM.read(CONVEYOR_ADDRESS + 1) << 8);
     reverse_conveyor = (bool)EEPROM.read(REVERSE_CONVEYOR_ADDRESS);
     conveyor_mode = (CONVEYOR_MODE)EEPROM.read(IS_CONVEYOR_MODE_ADDRESS);
     getFloatFromEeprom(PULSE_PER_MM_CONVEYOR_ADDRESS, pulse_per_mm);
@@ -209,6 +212,7 @@ void Conveyor::init()
     current_accel = 0;
     min_speed = 2;
     current_vel_button = 0;
+    conveyor_address = 1;
     load_data();
     load_auto_run_data();
     pinInit();
@@ -432,6 +436,12 @@ void Conveyor::decreaseSpeedFromButton()
 void Conveyor::setVelocityButton(float _speed)
 {
     speed_when_run_with_button = _speed;
+}
+
+void Conveyor::setAddress(uint16_t _address)
+{
+    conveyor_address = _address;
+    save_data();
 }
 
 Conveyor conveyor;

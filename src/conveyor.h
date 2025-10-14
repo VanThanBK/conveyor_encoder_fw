@@ -57,12 +57,15 @@ public:
 
     void setAccel(float _accel);
     void setOutput(uint8_t _pin, uint8_t _value);
+    void setAddress(uint16_t _address);
 
     void startFromButton();
     void stopFromButton();
     void increaseSpeedFromButton();
     void decreaseSpeedFromButton();
     void setVelocityButton(float _speed);
+
+    uint16_t conveyor_address;
 
     float pulse_per_mm;
     bool reverse_conveyor;
