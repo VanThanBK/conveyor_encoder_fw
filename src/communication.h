@@ -74,6 +74,8 @@ public:
     bool func_led_state = false;
     bool run_led_state = false;
     bool is_eth_enable = false;
+
+    String firmware_date = FIRMWARE_DATE;
 };
 
 extern communication control_port;
