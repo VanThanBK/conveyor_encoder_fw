@@ -45,4 +45,6 @@
 
 #define SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS 41 // &42
 
+#define CONVEYOR_ADDRESS 43 // &44
+
 

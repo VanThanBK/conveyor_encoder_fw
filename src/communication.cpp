@@ -404,6 +404,22 @@ void communication::execute()
         return;
     }
 
+    int index_gcode = gcode.indexOf(':');
+
+    if (index_gcode != -1)
+    {
+        String keyString = gcode.substring(0, index_gcode);
+        String valueString = gcode.substring(index_gcode + 1);
+        if(keyString == "Address")
+        {
+            uint16_t _address = valueString.toInt();
+            conveyor.setAddress(_address);
+            send_done();
+            return;
+        }
+        return;
+    }
+
     if (gcode == "IsXConveyor")
     {
         if (current_cmd_port == usb_port)
@@ -434,6 +450,22 @@ void communication::execute()
     else if (gcode == "IP")
     {
         send_ethernet_ip();
+        gcode = "";
+        return;
+    }
+
+    else if (gcode == "Address")
+    {
+        String fb_string = "Address:";
+        fb_string += String(conveyor.conveyor_address);
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println(fb_string);
+        }
+        else
+        {
+            eth_client.println(fb_string);
+        }
         gcode = "";
         return;
     }
