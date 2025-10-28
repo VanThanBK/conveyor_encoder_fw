@@ -340,16 +340,33 @@ void Conveyor::setVelocity(float _speed)
         return;
     }
 
-    if (_speed != 0)
+    last_target_speed = _speed;
+
+    if (_speed == 0)
     {
-        if (_speed < 0)
-        {
-            digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
-        }
-        else
-        {
-            digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
-        }
+        wait_for_reverse = false;
+        execute_speed(0);
+        return;
+    }
+
+    bool new_direction = _speed < 0;
+
+    if (current_speed > 0 && new_direction != current_direction)
+    {
+        wait_for_reverse = true;
+        execute_speed(0);
+        return;
+    }
+    wait_for_reverse = false;
+    if (new_direction)
+    {
+        digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
+        current_direction = true;
+    }
+    else
+    {
+        digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+        new_direction = false;
     }
 
     execute_speed(_speed);
@@ -453,6 +470,26 @@ void Conveyor::execute()
     {
         control_port.send_done();
         is_need_send_done = false;
+    }
+
+    if (current_speed == 0 && wait_for_reverse)
+    {
+
+        bool new_dir_is_reverse = (last_target_speed < 0);
+
+        if (new_dir_is_reverse)
+        {
+            digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
+            current_direction = true;
+        }
+        else
+        {
+            digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+            current_direction = false;
+        }
+
+        wait_for_reverse = false;
+        execute_speed(last_target_speed);
     }
 }
 

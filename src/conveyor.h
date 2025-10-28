@@ -103,6 +103,9 @@ private:
     float speed_when_run_with_button;
 
     volatile bool is_need_send_done = false;
+    float last_target_speed = 0;
+    bool wait_for_reverse = false;
+    bool current_direction = true;
 
     void pinInit();
     void timerInit();
