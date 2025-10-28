@@ -340,13 +340,16 @@ void Conveyor::setVelocity(float _speed)
         return;
     }
 
-    if (_speed < 0)
+    if (_speed != 0)
     {
-        digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
-    }
-    else
-    {
-        digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+        if (_speed < 0)
+        {
+            digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
+        }
+        else
+        {
+            digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+        }
     }
 
     execute_speed(_speed);
