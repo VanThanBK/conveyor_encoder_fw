@@ -5,8 +5,7 @@
 #define ENCODER_A_PIN PA11
 #define ENCODER_B_PIN PA12
 
-#define LED_RUN_PIN PA0
-#define LED_FUNC_PIN PA1
+#define LED_FUNC_PIN PB9
 
 #define MOTOR_PUL_PIN PB6
 #define MOTOR_DIR_PIN PB7

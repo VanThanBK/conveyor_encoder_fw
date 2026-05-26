@@ -319,9 +319,8 @@ void communication::init()
         init_eth();
     }
 
-    pinMode(LED_RUN_PIN, OUTPUT);
-    digitalWrite(LED_RUN_PIN, 0);
     pinMode(LED_FUNC_PIN, OUTPUT);
+    digitalWrite(LED_FUNC_PIN, 0);
 }
 
 void communication::execute()
