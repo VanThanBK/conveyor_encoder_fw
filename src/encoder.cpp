@@ -47,8 +47,8 @@ void Encoder::pinInit()
 {
     a_pin_encoder = ENCODER_A_PIN;
     b_pin_encoder = ENCODER_B_PIN;
-    pinMode(a_pin_encoder, INPUT_PULLUP);
-    pinMode(b_pin_encoder, INPUT_PULLUP);
+    pinMode(a_pin_encoder, INPUT);
+    pinMode(b_pin_encoder, INPUT);
 }
 
 void Encoder::attachInterruptEncoderPin()

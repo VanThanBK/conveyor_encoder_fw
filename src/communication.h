@@ -44,6 +44,7 @@ public:
     String ethernet_infor;
 
     String firmware_date = FIRMWARE_DATE;
+    String firmware_version = FIRMWARE_VERSION;
 
     bool is_enable_eth;
     void init_eth();
