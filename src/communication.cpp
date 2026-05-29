@@ -486,6 +486,22 @@ void communication::execute()
         return;
     }
 
+    else if (gcode == "FirmwareVersion")
+    {
+        String fb_string = "FirmwareVersion:";
+        fb_string += firmware_version;
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println(fb_string);
+        }
+        else
+        {
+            eth_client.println(fb_string);
+        }
+        gcode = "";
+        return;
+    }
+
     else if (gcode == "Reset")
     {
         USBPort.println("XConveyor Reset");

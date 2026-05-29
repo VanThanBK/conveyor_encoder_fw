@@ -76,6 +76,7 @@ public:
     bool is_eth_enable = false;
 
     String firmware_date = FIRMWARE_DATE;
+    String firmware_version = FIRMWARE_VERSION;
 };
 
 extern communication control_port;
