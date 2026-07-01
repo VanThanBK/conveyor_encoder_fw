@@ -1,4 +1,5 @@
 #include "communication.h"
+#include "io_control.h"
 
 void communication::init_eth()
 {
@@ -171,9 +172,12 @@ void communication::send_done()
     }
     else
     {
-        if (eth_client && eth_client.connected()) {
-            eth_client.write((const uint8_t*)"Ok\r\n", sizeof("Ok\r\n") - 1);
-        } else {
+        if (eth_client && eth_client.connected())
+        {
+            eth_client.write((const uint8_t *)"Ok\r\n", sizeof("Ok\r\n") - 1);
+        }
+        else
+        {
             USBPort.println("[ETH] not connected");
         }
     }
@@ -350,8 +354,10 @@ void communication::execute()
     }
 
     EthernetClient c = eth_server->available();
-    if (c) {
-        if (!(eth_client && eth_client.connected())) {
+    if (c)
+    {
+        if (!(eth_client && eth_client.connected()))
+        {
             eth_client.stop();
             eth_client = c;
         }
@@ -410,7 +416,7 @@ void communication::execute()
     {
         String keyString = gcode.substring(0, index_gcode);
         String valueString = gcode.substring(index_gcode + 1);
-        if(keyString == "Address")
+        if (keyString == "Address")
         {
             uint16_t _address = valueString.toInt();
             conveyor.setAddress(_address);
@@ -490,6 +496,22 @@ void communication::execute()
     {
         String fb_string = "FirmwareVersion:";
         fb_string += firmware_version;
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println(fb_string);
+        }
+        else
+        {
+            eth_client.println(fb_string);
+        }
+        gcode = "";
+        return;
+    }
+
+    else if (gcode == "MainboardVersion")
+    {
+        String fb_string = "MainboardVersion:";
+        fb_string += MAIN_BOARD_VERSION;
         if (current_cmd_port == usb_port)
         {
             USBPort.println(fb_string);
@@ -718,6 +740,47 @@ void communication::execute()
         else if (index_value > 0 && _value1[0] == 'S')
         {
             encoder.setStopInputAutoFeecback(_value1.substring(1).toInt());
+            send_done();
+        }
+    }
+
+    else if (keyValue == "M320")
+    {
+        // set output
+        if (index_value > 1 && _value1[0] == 'P' && _value2[0] == 'V')
+        {
+            uint8_t _pin = _value1.substring(1).toInt();
+            uint8_t _value = _value2.substring(1).toInt();
+            if (io_control.setOutput(_pin, _value))
+            {
+                send_done();
+            }
+        }
+    }
+    else if (keyValue == "M321")
+    {
+        // read input
+        if (index_value > 0 && _value1[0] == 'V')
+        {
+            uint8_t _index = _value1.substring(1).toInt();
+            bool _state = false;
+            if (io_control.getInput(_index, _state))
+            {
+                String fb_string = "I";
+                fb_string += String(_index);
+                fb_string += " V";
+                fb_string += String(_state);
+                response(fb_string);
+            }
+        }
+        else if (index_value > 0 && _value1[0] == 'T')
+        {
+            io_control.setInputAutoFeedback(_value1.substring(1).toInt());
+            send_done();
+        }
+        else if (index_value > 0 && _value1[0] == 'S')
+        {
+            io_control.setStopInputAutoFeedback(_value1.substring(1).toInt());
             send_done();
         }
     }

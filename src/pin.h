@@ -3,8 +3,10 @@
 #define ENCODER_A_PIN PB7
 #define ENCODER_B_PIN PB6
 
-#define INPUT_1_PIN PB7
-#define INPUT_2_PIN PB6
+#define INPUT_1_PIN PA12
+#define INPUT_2_PIN PA11
+#define INPUT_3_PIN PB14
+#define INPUT_4_PIN PB13
 
 #define LED_RUN_PIN PA8
 #define LED_FUNC_PIN PB15
@@ -13,9 +15,10 @@
 #define MOTOR_DIR_PIN PB9
 #define MOTOR_EN_PIN PB5
 
-#define OUTPUT_1_PIN PB8
-#define OUTPUT_2_PIN PB9
-#define OUTPUT_3_PIN PB5
+#define OUTPUT_1_PIN PB12
+#define OUTPUT_2_PIN PA2
+#define OUTPUT_3_PIN PA1
+#define OUTPUT_4_PIN PA0
 
 #define ETH_RESET_PIN PA3
 #define IS_ETH_ENABLE_ADDRESS 0
@@ -46,7 +49,10 @@
 #define SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS 41 // &42
 
 #define CONVEYOR_ADDRESS 43 // &44
-#define FIRMWARE_DATE "29/5/2026"
-#define FIRMWARE_VERSION "1.1.1"
+
+#define MAIN_BOARD_VERSION "2.0"
+
+#define FIRMWARE_DATE "1/7/2026"
+#define FIRMWARE_VERSION "1.0.0"
 
 

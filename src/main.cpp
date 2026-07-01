@@ -3,6 +3,7 @@
 #include "encoder.h"
 #include "conveyor.h"
 #include "communication.h"
+#include "io_control.h"
 
 // func interrupt for stepper motor
 void interrupt_timer_handle()
@@ -24,6 +25,7 @@ void setup()
   Serial3.end();
   
   encoder.init();
+  io_control.init();
   conveyor.init();
   control_port.init();
 
@@ -32,6 +34,7 @@ void setup()
 #else
   Serial.end();
   control_port.init();
+  io_control.init();
 
   encoder.init();
   conveyor.init();
@@ -45,7 +48,7 @@ void setup()
 void loop()
 {
   control_port.execute();
+  io_control.execute();
   encoder.execute();
   conveyor.execute();
-  // delay(1000);
 }
