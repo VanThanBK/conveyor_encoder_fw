@@ -55,13 +55,13 @@ private:
     uint8_t a_pin_encoder;
     uint8_t b_pin_encoder;
 
-    int32_t pulse_counter; // encoder pulse counter
+    volatile int32_t pulse_counter; // encoder pulse counter
     int32_t last_relative_pulse_counter;
     float current_position; // current angle of robot rf arm
     float last_relative_position;
 
-    bool a_input_state;
-    bool b_input_state;
+    volatile bool a_input_state;
+    volatile bool b_input_state;
     bool a_input_state_last;
     bool b_input_state_last;
 
@@ -110,10 +110,11 @@ public:
 
     void execute();
 
-    uint8_t encoder_scale;
+    // These settings are read by __encoder_handle() while it runs as an ISR.
+    volatile uint8_t encoder_scale;
     float pulse_per_mm;
-    ENCODER_MODE encoder_mode;
-    bool reverse_encoder;
+    volatile ENCODER_MODE encoder_mode;
+    volatile bool reverse_encoder;
     uint16_t time_auto_feedback;
 
     BUTTON_TYPE button_start;

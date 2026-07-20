@@ -751,7 +751,11 @@ void communication::execute()
         {
             uint8_t _pin = _value1.substring(1).toInt();
             uint8_t _value = _value2.substring(1).toInt();
-            if (io_control.setOutput(_pin, _value))
+            if (_pin < IO_COUNT && conveyor.output_function[_pin] != OUTPUT_FUNC_NONE)
+            {
+                response("Unknown:Output has function!");
+            }
+            else if (io_control.setOutput(_pin, _value))
             {
                 send_done();
             }
@@ -782,6 +786,140 @@ void communication::execute()
         {
             io_control.setStopInputAutoFeedback(_value1.substring(1).toInt());
             send_done();
+        }
+    }
+    else if (keyValue == "M322")
+    {
+        // assign function to an input: M322 I<idx> F<func> V<value>
+        // func: 0 none, 1 speed up, 2 speed down, 3 move relative, 4 stop
+        int _idx = -1;
+        int _func = -1;
+        float _val = 0;
+        bool _has_val = false;
+        String _vals[6] = {_value1, _value2, _value3, _value4, _value5, _value6};
+        for (uint8_t i = 0; i < index_value; i++)
+        {
+            if (_vals[i].length() == 0)
+            {
+                continue;
+            }
+            char _c = _vals[i][0];
+            if (_c == 'I')
+            {
+                _idx = _vals[i].substring(1).toInt();
+            }
+            else if (_c == 'F')
+            {
+                _func = _vals[i].substring(1).toInt();
+            }
+            else if (_c == 'V')
+            {
+                _val = _vals[i].substring(1).toFloat();
+                _has_val = true;
+            }
+        }
+
+        if (_idx >= 0 && _idx < IO_COUNT && _func >= 0)
+        {
+            float _set_val = _has_val ? _val : conveyor.input_value[_idx];
+            conveyor.setInputFunction(_idx, _func, _set_val);
+            send_done();
+        }
+        else if (_idx >= 0 && _idx < IO_COUNT)
+        {
+            String fb_string = "I";
+            fb_string += String(_idx);
+            fb_string += " F";
+            fb_string += String(conveyor.input_function[_idx]);
+            fb_string += " V";
+            fb_string += String(conveyor.input_value[_idx]);
+            response(fb_string);
+        }
+        else
+        {
+            String fb_string = "";
+            for (uint8_t i = 0; i < IO_COUNT; i++)
+            {
+                fb_string += "I";
+                fb_string += String(i);
+                fb_string += " F";
+                fb_string += String(conveyor.input_function[i]);
+                fb_string += " V";
+                fb_string += String(conveyor.input_value[i]);
+                if (i < IO_COUNT - 1)
+                {
+                    fb_string += '\n';
+                }
+            }
+            response(fb_string);
+        }
+    }
+
+    else if (keyValue == "M323")
+    {
+        // assign function to an output: M323 P<idx> F<func> V<value>
+        // func: 0 none, 1 position reached, 2 velocity reached
+        // F2: V=0 commanded speed; V>0 forward threshold; V<0 reverse threshold
+        int _idx = -1;
+        int _func = -1;
+        float _val = 0;
+        bool _has_val = false;
+        String _vals[6] = {_value1, _value2, _value3, _value4, _value5, _value6};
+        for (uint8_t i = 0; i < index_value; i++)
+        {
+            if (_vals[i].length() == 0)
+            {
+                continue;
+            }
+            char _c = _vals[i][0];
+            if (_c == 'P')
+            {
+                _idx = _vals[i].substring(1).toInt();
+            }
+            else if (_c == 'F')
+            {
+                _func = _vals[i].substring(1).toInt();
+            }
+            else if (_c == 'V')
+            {
+                _val = _vals[i].substring(1).toFloat();
+                _has_val = true;
+            }
+        }
+
+        if (_idx >= 0 && _idx < IO_COUNT && _func >= 0)
+        {
+            float _set_val = _has_val ? _val : conveyor.output_value[_idx];
+            conveyor.setOutputFunction(_idx, _func, _set_val);
+            send_done();
+        }
+        else if (_idx >= 0 && _idx < IO_COUNT)
+        {
+            String fb_string = "O";
+            fb_string += String(_idx);
+            fb_string += " F";
+            fb_string += String(conveyor.output_function[_idx]);
+            fb_string += " V";
+            fb_string += String(conveyor.output_value[_idx]);
+            response(fb_string);
+        }
+        else
+        {
+            String fb_string = "";
+            for (uint8_t i = 0; i < IO_COUNT; i++)
+            {
+                fb_string += "O";
+                fb_string += String(i);
+                fb_string += " F";
+                fb_string += String(conveyor.output_function[i]);
+                fb_string += " V";
+                fb_string += String(conveyor.output_value[i]);
+                if (i < IO_COUNT - 1)
+                {
+                    fb_string += '\n';
+                }
+            }
+            response(fb_string);
         }
     }
 

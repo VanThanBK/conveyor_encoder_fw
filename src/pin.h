@@ -49,10 +49,15 @@
 #define SPEED_WHEN_RUN_WITH_BUTTON_ADDRESS 41 // &42
 
 #define CONVEYOR_ADDRESS 43 // &44
+#define INPUT_FUNCTION_ADDRESS 45 // 45..48 (function code of 4 inputs)
+#define INPUT_VALUE_ADDRESS 49    // 49..64 (value of 4 inputs, 4 bytes each)
+#define OUTPUT_FUNCTION_ADDRESS 65 // 65..68 (function code of 4 outputs)
+#define OUTPUT_VALUE_ADDRESS 69    // 69..84 (value of 4 outputs, 4 bytes each)
+#define POS_SPEED_ADDRESS 85       // 85..88 (position move speed M313, raw float)
 
 #define MAIN_BOARD_VERSION "2.0"
 
-#define FIRMWARE_DATE "1/7/2026"
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_DATE "20/7/2026"
+#define FIRMWARE_VERSION "1.0.1"
 
 
