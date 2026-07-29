@@ -34,11 +34,18 @@ class Conveyor
     float current_speed;
 
     float current_accel;
+    float active_accel;
     float min_speed;
 
     float desire_position;
     float desire_speed;
     float desire_speed_pos;
+    float commanded_velocity;
+
+    bool motor_direction;
+    bool is_direction_change_pending;
+    bool pending_motor_direction;
+    float pending_direction_speed;
 
     uint32_t pulse_for_accel;
     uint32_t time_count;
@@ -68,6 +75,9 @@ class Conveyor
     void __execute_pos();
 
     void execute_speed(float _speed);
+    void setMotorDirection(bool _direction);
+    void requestSpeedWithDirection(float _speed, bool _direction);
+    void completePendingDirectionChange();
     
 public:
     void init();

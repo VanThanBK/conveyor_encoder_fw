@@ -7,7 +7,8 @@ void Conveyor::pinInit()
     pinMode(MOTOR_EN_PIN, OUTPUT);
 
     digitalWrite(MOTOR_PUL_PIN, LOW);
-    digitalWrite(MOTOR_DIR_PIN, LOW);
+    motor_direction = reverse_conveyor;
+    digitalWrite(MOTOR_DIR_PIN, motor_direction);
     digitalWrite(MOTOR_EN_PIN, HIGH);
 }
 
@@ -102,15 +103,15 @@ void Conveyor::__execute_vel()
     if (current_speed != desire_speed)
     {
         time_count += current_period;
-        if (current_accel == 0)
+        if (active_accel == 0)
         {
             current_speed = desire_speed;
             setTimerPeriodFromSpeed(current_speed);
         }
         else if (time_count >= TIME_ISR_ACCEL)
         {
-            current_speed = current_speed + current_accel * time_count / 1000000.0;
-            if ((current_accel > 0 && current_speed > desire_speed) || (current_accel < 0 && current_speed < desire_speed))
+            current_speed = current_speed + active_accel * time_count / 1000000.0;
+            if ((active_accel > 0 && current_speed > desire_speed) || (active_accel < 0 && current_speed < desire_speed))
             {
                 current_speed = desire_speed;
             }
@@ -118,6 +119,8 @@ void Conveyor::__execute_vel()
             setTimerPeriodFromSpeed(current_speed);
         }
     }
+
+    completePendingDirectionChange();
 }
 
 void Conveyor::__execute_pos()
@@ -141,8 +144,10 @@ void Conveyor::__execute_pos()
 
     if (pulse_counter == total_pulse)
     {
-        // setVelocity(0);
         current_position = desire_position;
+        current_speed = 0;
+        desire_speed = 0;
+        active_accel = 0;
         pulse_counter = 0;
         ExecuteStepTimer->pause();
         is_need_send_done = true;
@@ -160,17 +165,17 @@ void Conveyor::execute_speed(float _speed)
     time_count = 0;
     if (desire_speed > current_speed)
     {
-        current_accel = abs(current_accel);
+        active_accel = abs(current_accel);
     }
     else
     {
-        current_accel = -abs(current_accel);
+        active_accel = -abs(current_accel);
     }
 
     if (current_speed == 0)
     {
         current_speed = min_speed;
-        if (current_accel == 0)
+        if (active_accel == 0)
         {
             current_speed = desire_speed;
         }
@@ -180,12 +185,76 @@ void Conveyor::execute_speed(float _speed)
     }
 }
 
+void Conveyor::setMotorDirection(bool _direction)
+{
+    motor_direction = _direction;
+    digitalWrite(MOTOR_DIR_PIN, motor_direction);
+}
+
+void Conveyor::requestSpeedWithDirection(float _speed, bool _direction)
+{
+    float _target_speed = abs(_speed);
+
+    if (_target_speed == 0)
+    {
+        is_direction_change_pending = false;
+        pending_direction_speed = 0;
+        execute_speed(0);
+        return;
+    }
+
+    if (_direction == motor_direction)
+    {
+        is_direction_change_pending = false;
+        pending_direction_speed = 0;
+        execute_speed(_target_speed);
+        return;
+    }
+
+    if (current_speed > 0)
+    {
+        pending_motor_direction = _direction;
+        pending_direction_speed = _target_speed;
+        is_direction_change_pending = true;
+        execute_speed(0);
+        return;
+    }
+
+    is_direction_change_pending = false;
+    pending_direction_speed = 0;
+    setMotorDirection(_direction);
+    execute_speed(_target_speed);
+}
+
+void Conveyor::completePendingDirectionChange()
+{
+    if (!is_direction_change_pending || current_speed != 0)
+    {
+        return;
+    }
+
+    bool _new_direction = pending_motor_direction;
+    float _new_speed = pending_direction_speed;
+
+    is_direction_change_pending = false;
+    pending_direction_speed = 0;
+
+    setMotorDirection(_new_direction);
+    execute_speed(_new_speed);
+}
+
 void Conveyor::init()
 {
     current_position = 0;
+    current_speed = 0;
     current_accel = 0;
+    active_accel = 0;
     min_speed = 2;
     current_vel_button = 0;
+    commanded_velocity = 0;
+    is_direction_change_pending = false;
+    pending_direction_speed = 0;
+    read_potentiometer_period = DEFAULT_READ_POTENTIOMETER_PERIOD;
     load_data();
     load_auto_run_data();
     pinInit();
@@ -236,14 +305,29 @@ void Conveyor::setConveyorMode(uint8_t _enable)
 
     current_position = 0;
     current_speed = 0;
+    desire_speed = 0;
+    active_accel = 0;
+    commanded_velocity = 0;
     pulse_counter = 0;
+    is_direction_change_pending = false;
+    pending_direction_speed = 0;
+    setMotorDirection(reverse_conveyor);
     save_data();
 }
 
 void Conveyor::setReverseConveyor(bool _dir)
 {
     reverse_conveyor = _dir;
-    digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
+
+    if (current_speed == 0)
+    {
+        setMotorDirection(reverse_conveyor);
+    }
+    else if (conveyor_mode == CONVEYOR_VEL || conveyor_mode == CONVEYOR_VEL_INPUT)
+    {
+        requestSpeedWithDirection(commanded_velocity, commanded_velocity < 0 ? !reverse_conveyor : reverse_conveyor);
+    }
+
     save_data();
 }
 
@@ -277,21 +361,14 @@ void Conveyor::setPosition(float _pos)
         control_port.send_done();
         return;
     }
-    else if (desire_position > current_position)
-    {
-        digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
-    }
-    else
-    {
-        digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
-    }
 
     current_speed = 0;
     pulse_for_accel = 0;
 
     total_pulse = abs(desire_position - current_position) * pulse_per_mm;
 
-    execute_speed(desire_speed_pos);
+    bool _direction = desire_position > current_position ? reverse_conveyor : !reverse_conveyor;
+    requestSpeedWithDirection(desire_speed_pos, _direction);
 }
 
 void Conveyor::setVelocity(float _speed)
@@ -301,16 +378,9 @@ void Conveyor::setVelocity(float _speed)
         return;
     }
 
-    if (_speed < 0)
-    {
-        digitalWrite(MOTOR_DIR_PIN, !reverse_conveyor);
-    }
-    else
-    {
-        digitalWrite(MOTOR_DIR_PIN, reverse_conveyor);
-    }
-
-    execute_speed(_speed);
+    commanded_velocity = _speed;
+    bool _direction = _speed < 0 ? !reverse_conveyor : reverse_conveyor;
+    requestSpeedWithDirection(_speed, _direction);
 }
 
 void Conveyor::setVelocityPos(float _speed)
@@ -321,13 +391,31 @@ void Conveyor::setVelocityPos(float _speed)
 void Conveyor::stopPosition()
 {
     current_speed = 0;
+    desire_speed = 0;
+    active_accel = 0;
+    is_direction_change_pending = false;
+    pending_direction_speed = 0;
     current_position += (pulse_counter / pulse_per_mm) * (desire_position - current_position) / abs(desire_position - current_position);
     ExecuteStepTimer->pause();
 }
 
 void Conveyor::setAccel(float _accel)
 {
-    current_accel = _accel;
+    current_accel = abs(_accel);
+
+    if (desire_speed > current_speed)
+    {
+        active_accel = current_accel;
+    }
+    else if (desire_speed < current_speed)
+    {
+        active_accel = -current_accel;
+    }
+    else
+    {
+        active_accel = 0;
+    }
+
     save_data();
 }
 
