@@ -57,7 +57,7 @@
 
 #define MAIN_BOARD_VERSION "2.0"
 
-#define FIRMWARE_DATE "20/7/2026"
-#define FIRMWARE_VERSION "2.0.0"
+#define FIRMWARE_DATE "19/8/2026"
+#define FIRMWARE_VERSION "2.0.1"
 
 
