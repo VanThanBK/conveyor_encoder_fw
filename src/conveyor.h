@@ -43,7 +43,7 @@ typedef enum
     CONVEYOR_INPUT, // control from IO inputs: the function assigned to each input decides speed or position motion
 } CONVEYOR_MODE;
 
-// function assigned to an IO input (set via gcode M322), active in CONVEYOR_INPUT mode
+// function assigned to an IO input (set via gcode M332), active in CONVEYOR_INPUT mode
 typedef enum
 {
     INPUT_FUNC_NONE = 0,
@@ -53,11 +53,11 @@ typedef enum
     INPUT_FUNC_STOP,       // always works: stop a position move / velocity run
 } INPUT_FUNC;
 
-// function assigned to an IO output (set via gcode M323), driven from the real
+// function assigned to an IO output (set via gcode M333), driven from the real
 // motion state so it works for both gcode and input commanded motions
 typedef enum
 {
-    OUTPUT_FUNC_NONE = 0,    // free output, controlled by M320
+    OUTPUT_FUNC_NONE = 0,    // free output, controlled by M330
     OUTPUT_FUNC_POS_REACHED, // ON while resting at the target of a completed position move
     OUTPUT_FUNC_VEL_REACHED, // V = 0: commanded speed reached; V > 0: forward threshold; V < 0: reverse threshold
 } OUTPUT_FUNC;

@@ -744,7 +744,7 @@ void communication::execute()
         }
     }
 
-    else if (keyValue == "M320")
+    else if (keyValue == "M330")
     {
         // set output
         if (index_value > 1 && _value1[0] == 'P' && _value2[0] == 'V')
@@ -761,7 +761,7 @@ void communication::execute()
             }
         }
     }
-    else if (keyValue == "M321")
+    else if (keyValue == "M331")
     {
         // read input
         if (index_value > 0 && _value1[0] == 'V')
@@ -788,9 +788,9 @@ void communication::execute()
             send_done();
         }
     }
-    else if (keyValue == "M322")
+    else if (keyValue == "M332")
     {
-        // assign function to an input: M322 I<idx> F<func> V<value>
+        // assign function to an input: M332 I<idx> F<func> V<value>
         // func: 0 none, 1 speed up, 2 speed down, 3 move relative, 4 stop
         int _idx = -1;
         int _func = -1;
@@ -855,9 +855,9 @@ void communication::execute()
         }
     }
 
-    else if (keyValue == "M323")
+    else if (keyValue == "M333")
     {
-        // assign function to an output: M323 P<idx> F<func> V<value>
+        // assign function to an output: M333 P<idx> F<func> V<value>
         // func: 0 none, 1 position reached, 2 velocity reached
         // F2: V=0 commanded speed; V>0 forward threshold; V<0 reverse threshold
         int _idx = -1;
