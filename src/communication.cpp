@@ -1,6 +1,26 @@
 #include "communication.h"
 #include "io_control.h"
 
+// why the slider refused a motion request, in a form the host can read
+static const char *move_error(MOVE_RESULT _result)
+{
+    switch (_result)
+    {
+    case MOVE_ERR_BUSY:
+        return "Unknown:Slider busy!";
+    case MOVE_ERR_NOT_HOMED:
+        return "Unknown:Not homed! Send M320";
+    case MOVE_ERR_LIMIT:
+        return "Unknown:Out of travel!";
+    case MOVE_ERR_FAULT:
+        return "Unknown:Fault latched! Send M327 C";
+    case MOVE_ERR_RANGE:
+        return "Unknown:Value out of range!";
+    default:
+        return "Unknown:Cannot move!";
+    }
+}
+
 void communication::init_eth()
 {
     // SPI.setBitOrder(MSBFIRST);
@@ -126,44 +146,6 @@ void communication::load_eth()
     delay(1);
 }
 
-void communication::send_encoder_pos()
-{
-    String fb_string = "P0:";
-    fb_string += String(encoder.getPosition(), 2);
-
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(fb_string);
-    }
-    else
-    {
-        eth_client.println(fb_string);
-    }
-}
-
-void communication::send_encoder_infor()
-{
-    String fb_string = "M:";
-    fb_string += String(encoder.encoder_mode);
-    fb_string += " C:";
-    fb_string += String(encoder.encoder_scale);
-    fb_string += " S:";
-    fb_string += String(encoder.pulse_per_mm);
-    fb_string += " R:";
-    fb_string += String(encoder.reverse_encoder);
-    fb_string += " T:";
-    fb_string += String(encoder.time_auto_feedback);
-
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(fb_string);
-    }
-    else
-    {
-        eth_client.println(fb_string);
-    }
-}
-
 void communication::send_done()
 {
     if (current_cmd_port == usb_port)
@@ -183,23 +165,62 @@ void communication::send_done()
     }
 }
 
-void communication::send_conveyor_infor()
+void communication::send_mechanics_infor()
 {
-    String fb_string = "M:";
-    fb_string += String(conveyor.conveyor_mode);
+    String fb_string = "R:";
+    fb_string += String(slider.steps_per_rev, 2);
+    fb_string += " L:";
+    fb_string += String(slider.screw_lead, 3);
     fb_string += " S:";
-    fb_string += String(conveyor.pulse_per_mm);
-    fb_string += " R:";
-    fb_string += String(conveyor.reverse_conveyor);
+    fb_string += String(slider.pulse_per_mm, 3);
+    fb_string += " V:";
+    fb_string += String(slider.getMaxSpeed(), 2);
 
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(fb_string);
-    }
-    else
-    {
-        eth_client.println(fb_string);
-    }
+    response(fb_string);
+}
+
+void communication::send_slider_status()
+{
+    String fb_string = "P:";
+    fb_string += String(slider.getPosition(), 2);
+    fb_string += " V:";
+    fb_string += String(slider.getMoveSpeed(), 2);
+    fb_string += " A:";
+    fb_string += String(slider.getAccel(), 2);
+    fb_string += " H:";
+    fb_string += String(slider.is_homed ? 1 : 0);
+    fb_string += " M:";
+    fb_string += String(slider.isMoving() ? 1 : 0);
+    fb_string += " E:";
+    fb_string += String(slider.is_stepper_enable ? 1 : 0);
+    fb_string += " F:";
+    fb_string += String((int)slider.getFault());
+
+    response(fb_string);
+}
+
+void communication::send_home_infor()
+{
+    String fb_string = "I:";
+    fb_string += String(slider.home_input);
+    fb_string += " L:";
+    fb_string += String(slider.home_active_level);
+    fb_string += " S:";
+    fb_string += String(slider.home_speed, 2);
+    fb_string += " F:";
+    fb_string += String(slider.home_speed_slow, 2);
+    fb_string += " B:";
+    fb_string += String(slider.home_backoff, 2);
+    fb_string += " O:";
+    fb_string += String(slider.home_offset, 2);
+    fb_string += " R:";
+    fb_string += String(slider.reverse_slider ? 1 : 0);
+    fb_string += " N:";
+    fb_string += String(NEGATIVE_LIMIT_INPUT);
+    fb_string += " P:";
+    fb_string += String(POSITIVE_LIMIT_INPUT);
+
+    response(fb_string);
 }
 
 void communication::send_ethernet_infor()
@@ -279,36 +300,6 @@ void communication::reset_eth_ips()
     init_eth();
 }
 
-void communication::send_input_a_state()
-{
-    String fb_string = "I0 V";
-    fb_string += String(encoder.getInputA());
-
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(fb_string);
-    }
-    else
-    {
-        eth_client.println(fb_string);
-    }
-}
-
-void communication::send_input_b_state()
-{
-    String fb_string = "I1 V";
-    fb_string += String(encoder.getInputB());
-
-    if (current_cmd_port == usb_port)
-    {
-        USBPort.println(fb_string);
-    }
-    else
-    {
-        eth_client.println(fb_string);
-    }
-}
-
 void communication::init()
 {
 #if !defined(__STM32F1__)
@@ -317,6 +308,8 @@ void communication::init()
 #endif
     USBPort.begin(115200);
     USBPort.setTimeout(5);
+
+    eth_server = NULL;
 
     load_eth();
 
@@ -353,13 +346,17 @@ void communication::execute()
         }
     }
 
-    EthernetClient c = eth_server->available();
-    if (c)
+    // eth_server only exists once Ethernet has been enabled (M389 1)
+    if (eth_server)
     {
-        if (!(eth_client && eth_client.connected()))
+        EthernetClient c = eth_server->available();
+        if (c)
         {
-            eth_client.stop();
-            eth_client = c;
+            if (!(eth_client && eth_client.connected()))
+            {
+                eth_client.stop();
+                eth_client = c;
+            }
         }
     }
 
@@ -419,40 +416,30 @@ void communication::execute()
         if (keyString == "Address")
         {
             uint16_t _address = valueString.toInt();
-            conveyor.setAddress(_address);
+            slider.setAddress(_address);
             send_done();
-            return;
-        }
-        return;
-    }
-
-    if (gcode == "IsXConveyor")
-    {
-        if (current_cmd_port == usb_port)
-        {
-            USBPort.println("YesXConveyor");
         }
         else
         {
-            eth_client.println("YesXConveyor");
-        }
-        gcode = "";
-        return;
-    }
-    else if (gcode == "IsXEncoder")
-    {
-        if (current_cmd_port == usb_port)
-        {
-            USBPort.println("YesXEncoder");
-        }
-        else
-        {
-            eth_client.println("YesXEncoder");
+            response("Unknown:Gcode!");
         }
         gcode = "";
         return;
     }
 
+    if (gcode == "IsSliderX" || gcode == "IsXSlider")
+    {
+        if (current_cmd_port == usb_port)
+        {
+            USBPort.println("YesSliderX");
+        }
+        else
+        {
+            eth_client.println("YesSliderX");
+        }
+        gcode = "";
+        return;
+    }
     else if (gcode == "IP")
     {
         send_ethernet_ip();
@@ -463,7 +450,7 @@ void communication::execute()
     else if (gcode == "Address")
     {
         String fb_string = "Address:";
-        fb_string += String(conveyor.conveyor_address);
+        fb_string += String(slider.slider_address);
         if (current_cmd_port == usb_port)
         {
             USBPort.println(fb_string);
@@ -526,7 +513,7 @@ void communication::execute()
 
     else if (gcode == "Reset")
     {
-        USBPort.println("XConveyor Reset");
+        USBPort.println("SliderX Reset");
         gcode = "";
         delay(100);
         NVIC_SystemReset();
@@ -537,12 +524,7 @@ void communication::execute()
     byte index_value = 0;
 
     String keyValue = gcode.substring(0, 4);
-    String _value1 = "";
-    String _value2 = "";
-    String _value3 = "";
-    String _value4 = "";
-    String _value5 = "";
-    String _value6 = "";
+    String _values[MAX_GCODE_VALUES];
 
     for (uint16_t i = 4; i < gcode.length(); i++)
     {
@@ -551,34 +533,9 @@ void communication::execute()
             if (splitWord == "")
                 continue;
 
-            if (index_value == 0)
+            if (index_value < MAX_GCODE_VALUES)
             {
-                _value1 = splitWord;
-                index_value++;
-            }
-            else if (index_value == 1)
-            {
-                _value2 = splitWord;
-                index_value++;
-            }
-            else if (index_value == 2)
-            {
-                _value3 = splitWord;
-                index_value++;
-            }
-            else if (index_value == 3)
-            {
-                _value4 = splitWord;
-                index_value++;
-            }
-            else if (index_value == 4)
-            {
-                _value5 = splitWord;
-                index_value++;
-            }
-            else if (index_value == 5)
-            {
-                _value6 = splitWord;
+                _values[index_value] = splitWord;
                 index_value++;
             }
 
@@ -588,333 +545,376 @@ void communication::execute()
         splitWord += String(gcode[i]);
     }
 
-    // conveyor
-    if (keyValue == "M310")
-    {
-        // set mode
-        conveyor.setConveyorMode(_value1.toFloat());
-        send_done();
-    }
-    else if (keyValue == "M311")
-    {
-        // set speed
-        conveyor.setVelocity(_value1.toFloat());
-        send_done();
-    }
-    else if (keyValue == "M312")
-    {
-        // set position
-        conveyor.setPosition(_value1.toFloat());
-    }
-    else if (keyValue == "M313")
-    {
-        // set speed position
-        conveyor.setVelocityPos(_value1.toFloat());
-        send_done();
-    }
-    else if (keyValue == "M314")
-    {
-        if (index_value > 1 && _value1[0] == 'P' && _value2[0] == 'V')
-        {
-            float _pin = _value1.substring(1).toInt();
-            float _value = _value2.substring(1).toInt();
-            conveyor.setOutput(_pin, _value);
-            send_done();
-        }
-    }
-    else if (keyValue == "M315")
-    {
-        if (index_value > 0 && _value1[0] == 'S')
-        {
-            float _pulse = _value1.substring(1).toFloat();
-            conveyor.setPulsePerMm(_pulse);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'R')
-        {
-            bool _reverse = _value1.substring(1).toInt();
-            conveyor.setReverseConveyor(_reverse);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'E')
-        {
-            bool _run = _value1.substring(1).toInt();
-            conveyor.setRunWithEncoder(_run);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'P')
-        {
-            // set run with encoder
-            conveyor.stopPosition();
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'A')
-        {
-            // set accel
-            conveyor.setAccel(_value1.substring(1).toFloat());
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'B')
-        {
-            // set accel
-            conveyor.setVelocityButton(_value1.substring(1).toFloat());
-            send_done();
-        }
-        else
-        {
-            send_conveyor_infor();
-        }
-    }
+    String &_value1 = _values[0];
+    String &_value2 = _values[1];
+    String &_value3 = _values[2];
+    String &_value4 = _values[3];
+    String &_value5 = _values[4];
+    String &_value6 = _values[5];
 
-    // encoder
-    else if (keyValue == "M316")
+    // ---------------------------------------------------------- Slider X ----
+    if (keyValue == "M320")
     {
-        // set mode
-        encoder.setEncoderMode(_value1.toInt());
-        send_done();
-    }
-    else if (keyValue == "M317")
-    {
-        if (index_value > 0 && _value1[0] == 'T')
+        // homing: seek the home switch and zero the position.
+        // "Ok" is sent by the slider once the sequence finishes.
+        MOVE_RESULT _result = slider.home();
+        if (_result != MOVE_OK)
         {
-            int _time_response = _value1.substring(1).toInt();
-            encoder.setTimeAutoFeedback(_time_response);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'R')
-        {
-            encoder.resetCounter();
-            send_done();
-        }
-        else if (index_value == 0)
-        {
-            send_encoder_pos();
-        }
-    }
-    else if (keyValue == "M318")
-    {
-        // get pulse per mm
-        if (index_value > 0 && _value1[0] == 'S')
-        {
-            float _pulse = _value1.substring(1).toFloat();
-            encoder.setPulsePerMm(_pulse);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'R')
-        {
-            bool _reverse = _value1.substring(1).toInt();
-            encoder.setReverseEncoder(_reverse);
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'C')
-        {
-            int _scale = _value1.substring(1).toInt();
-            encoder.setEncoderScale(_scale);
-            send_done();
-        }
-        else
-        {
-            send_encoder_infor();
-        }
-    }
-    else if (keyValue == "M319")
-    {
-        // read input
-        if (index_value > 0 && _value1[0] == 'V')
-        {
-            int _index = _value1.substring(1).toInt();
-            if (_index == 0)
-            {
-                send_input_a_state();
-            }
-            else if (_index == 1)
-            {
-                send_input_b_state();
-            }
-        }
-        else if (index_value > 0 && _value1[0] == 'T')
-        {
-            encoder.setInputAutoFeecback(_value1.substring(1).toInt());
-            send_done();
-        }
-        else if (index_value > 0 && _value1[0] == 'S')
-        {
-            encoder.setStopInputAutoFeecback(_value1.substring(1).toInt());
-            send_done();
-        }
-    }
-
-    else if (keyValue == "M320")
-    {
-        // set output
-        if (index_value > 1 && _value1[0] == 'P' && _value2[0] == 'V')
-        {
-            uint8_t _pin = _value1.substring(1).toInt();
-            uint8_t _value = _value2.substring(1).toInt();
-            if (_pin < IO_COUNT && conveyor.output_function[_pin] != OUTPUT_FUNC_NONE)
-            {
-                response("Unknown:Output has function!");
-            }
-            else if (io_control.setOutput(_pin, _value))
-            {
-                send_done();
-            }
+            response(move_error(_result));
         }
     }
     else if (keyValue == "M321")
     {
-        // read input
-        if (index_value > 0 && _value1[0] == 'V')
+        // set / read the moving speed used by M322 (mm/s)
+        if (index_value > 0)
         {
-            uint8_t _index = _value1.substring(1).toInt();
-            bool _state = false;
-            if (io_control.getInput(_index, _state))
-            {
-                String fb_string = "I";
-                fb_string += String(_index);
-                fb_string += " V";
-                fb_string += String(_state);
-                response(fb_string);
-            }
-        }
-        else if (index_value > 0 && _value1[0] == 'T')
-        {
-            io_control.setInputAutoFeedback(_value1.substring(1).toInt());
+            slider.setMoveSpeed(_value1.toFloat());
             send_done();
         }
-        else if (index_value > 0 && _value1[0] == 'S')
+        else
         {
-            io_control.setStopInputAutoFeedback(_value1.substring(1).toInt());
-            send_done();
+            String fb_string = "V:";
+            fb_string += String(slider.getMoveSpeed(), 2);
+            response(fb_string);
         }
     }
     else if (keyValue == "M322")
     {
-        // assign function to an input: M322 I<idx> F<func> V<value>
-        // func: 0 none, 1 speed up, 2 speed down, 3 move relative, 4 stop
-        int _idx = -1;
-        int _func = -1;
-        float _val = 0;
-        bool _has_val = false;
-        String _vals[6] = {_value1, _value2, _value3, _value4, _value5, _value6};
-        for (uint8_t i = 0; i < index_value; i++)
+        // set the desired position (mm from the home point) / read the current one
+        if (index_value > 0 && (_value1[0] == 'R' || _value1[0] == 'r'))
         {
-            if (_vals[i].length() == 0)
+            // relative move: M322 R<distance>
+            MOVE_RESULT _result = slider.movePositionRelative(_value1.substring(1).toFloat());
+            if (_result != MOVE_OK)
             {
-                continue;
-            }
-            char _c = _vals[i][0];
-            if (_c == 'I')
-            {
-                _idx = _vals[i].substring(1).toInt();
-            }
-            else if (_c == 'F')
-            {
-                _func = _vals[i].substring(1).toInt();
-            }
-            else if (_c == 'V')
-            {
-                _val = _vals[i].substring(1).toFloat();
-                _has_val = true;
+                response(move_error(_result));
             }
         }
-
-        if (_idx >= 0 && _idx < IO_COUNT && _func >= 0)
+        else if (index_value > 0)
         {
-            float _set_val = _has_val ? _val : conveyor.input_value[_idx];
-            conveyor.setInputFunction(_idx, _func, _set_val);
-            send_done();
-        }
-        else if (_idx >= 0 && _idx < IO_COUNT)
-        {
-            String fb_string = "I";
-            fb_string += String(_idx);
-            fb_string += " F";
-            fb_string += String(conveyor.input_function[_idx]);
-            fb_string += " V";
-            fb_string += String(conveyor.input_value[_idx]);
-            response(fb_string);
+            MOVE_RESULT _result = slider.setPosition(_value1.toFloat());
+            if (_result != MOVE_OK)
+            {
+                response(move_error(_result));
+            }
         }
         else
         {
-            String fb_string = "";
-            for (uint8_t i = 0; i < IO_COUNT; i++)
-            {
-                fb_string += "I";
-                fb_string += String(i);
-                fb_string += " F";
-                fb_string += String(conveyor.input_function[i]);
-                fb_string += " V";
-                fb_string += String(conveyor.input_value[i]);
-                if (i < IO_COUNT - 1)
-                {
-                    fb_string += '\n';
-                }
-            }
+            String fb_string = "P:";
+            fb_string += String(slider.getPosition(), 2);
             response(fb_string);
         }
     }
-
     else if (keyValue == "M323")
     {
-        // assign function to an output: M323 P<idx> F<func> V<value>
-        // func: 0 none, 1 position reached, 2 velocity reached
-        // F2: V=0 commanded speed; V>0 forward threshold; V<0 reverse threshold
-        int _idx = -1;
-        int _func = -1;
-        float _val = 0;
-        bool _has_val = false;
-        String _vals[6] = {_value1, _value2, _value3, _value4, _value5, _value6};
+        // release the stepper (M323) or drive the enable pin explicitly (M323 E0/E1)
+        if (index_value > 0 && _value1[0] == 'E')
+        {
+            if (_value1.substring(1).toInt())
+            {
+                slider.enableStepper();
+            }
+            else
+            {
+                slider.disableStepper();
+            }
+        }
+        else
+        {
+            slider.disableStepper();
+        }
+        send_done();
+    }
+    else if (keyValue == "M324")
+    {
+        // set / read the acceleration (mm/s^2)
+        if (index_value > 0)
+        {
+            slider.setAccel(_value1.toFloat());
+            send_done();
+        }
+        else
+        {
+            String fb_string = "A:";
+            fb_string += String(slider.getAccel(), 2);
+            response(fb_string);
+        }
+    }
+    else if (keyValue == "M325")
+    {
+        // Centre homing is fixed and only starts on M320. R handles motor wiring.
+        uint8_t _reverse = 255;
+        bool _valid = true;
+
+        String *_vals = _values;
         for (uint8_t i = 0; i < index_value; i++)
         {
-            if (_vals[i].length() == 0)
+            if (_vals[i].length() < 2)
             {
                 continue;
             }
-            char _c = _vals[i][0];
-            if (_c == 'P')
+
+            String _rest = _vals[i].substring(1);
+            switch (_vals[i][0])
             {
-                _idx = _vals[i].substring(1).toInt();
-            }
-            else if (_c == 'F')
-            {
-                _func = _vals[i].substring(1).toInt();
-            }
-            else if (_c == 'V')
-            {
-                _val = _vals[i].substring(1).toFloat();
-                _has_val = true;
+            case 'R':
+                _reverse = _rest.toInt();
+                break;
+            default:
+                _valid = false;
+                break;
             }
         }
 
-        if (_idx >= 0 && _idx < IO_COUNT && _func >= 0)
+        if (index_value > 0)
         {
-            float _set_val = _has_val ? _val : conveyor.output_value[_idx];
-            conveyor.setOutputFunction(_idx, _func, _set_val);
-            send_done();
+            if (!_valid || (_reverse != 255 && _reverse > 1))
+            {
+                response("Unknown:Bad M325 parameter!");
+            }
+            else
+            {
+                slider.setHomeConfig(_reverse);
+                send_done();
+            }
         }
-        else if (_idx >= 0 && _idx < IO_COUNT)
+        else
         {
-            String fb_string = "O";
-            fb_string += String(_idx);
-            fb_string += " F";
-            fb_string += String(conveyor.output_function[_idx]);
-            fb_string += " V";
-            fb_string += String(conveyor.output_value[_idx]);
-            response(fb_string);
+            send_home_infor();
+        }
+    }
+    else if (keyValue == "M326")
+    {
+        // status
+        send_slider_status();
+    }
+    else if (keyValue == "M327")
+    {
+        // M327   -> ramp down and hold the position
+        // M327 E -> emergency stop, cuts the pulses at once and latches a fault
+        // M327 C -> acknowledge a latched fault so motion is accepted again
+        if (index_value > 0 && _value1[0] == 'E')
+        {
+            slider.stopEmergency(FAULT_ESTOP);
+        }
+        else if (index_value > 0 && _value1[0] == 'C')
+        {
+            slider.clearFault();
+        }
+        else
+        {
+            slider.stopSmooth();
+        }
+        send_done();
+    }
+    else if (keyValue == "M328")
+    {
+        // Mechanics: M328 R<steps/rev> L<lead mm/rev>
+        // pulse_per_mm is recomputed as steps_per_rev / screw_lead.
+        float _steps_rev = 0;
+        float _lead = 0;
+
+        for (uint8_t i = 0; i < index_value; i++)
+        {
+            if (_values[i].length() < 2)
+            {
+                continue;
+            }
+
+            if (_values[i][0] == 'R')
+            {
+                _steps_rev = _values[i].substring(1).toFloat();
+            }
+            else if (_values[i][0] == 'L')
+            {
+                _lead = _values[i].substring(1).toFloat();
+            }
+        }
+
+        if (index_value > 0)
+        {
+            MOVE_RESULT _result = slider.setMechanics(_steps_rev, _lead);
+            if (_result == MOVE_OK)
+            {
+                send_done();
+            }
+            else
+            {
+                response(move_error(_result));
+            }
+        }
+        else
+        {
+            send_mechanics_infor();
+        }
+    }
+    else if (keyValue == "M329")
+    {
+        // Digital IO, all of it:
+        //   M329 P<i> V<0|1>        set output i
+        //   M329 P<i> F<f> V<val>   assign a function to output i
+        //   M329 I<i>               read input i
+        //   M329 I<i> F<f> V<val>   assign a function to input i
+        //   M329 T<i> / M329 S<i>   start / stop auto feedback of input i
+        //   M329                    list every input and output
+        int _in = -1;
+        int _out = -1;
+        int _func = -1;
+        int _feedback_on = -1;
+        int _feedback_off = -1;
+        int _level = -1;
+        float _val = 0;
+        bool _has_val = false;
+
+        for (uint8_t i = 0; i < index_value; i++)
+        {
+            if (_values[i].length() < 2)
+            {
+                continue;
+            }
+
+            String _rest = _values[i].substring(1);
+            switch (_values[i][0])
+            {
+            case 'I':
+                _in = _rest.toInt();
+                break;
+            case 'P':
+                _out = _rest.toInt();
+                break;
+            case 'F':
+                _func = _rest.toInt();
+                break;
+            case 'V':
+                _val = _rest.toFloat();
+                _has_val = true;
+                break;
+            case 'T':
+                _feedback_on = _rest.toInt();
+                break;
+            case 'S':
+                _feedback_off = _rest.toInt();
+                break;
+            case 'L':
+                _level = _rest.toInt();
+                break;
+            default:
+                break;
+            }
+        }
+
+        if (_feedback_on >= 0)
+        {
+            if (io_control.setInputAutoFeedback(_feedback_on))
+            {
+                send_done();
+            }
+            else
+            {
+                response("Unknown:Bad input index!");
+            }
+        }
+        else if (_feedback_off >= 0)
+        {
+            if (io_control.setStopInputAutoFeedback(_feedback_off))
+            {
+                send_done();
+            }
+            else
+            {
+                response("Unknown:Bad input index!");
+            }
+        }
+        else if (_in >= 0)
+        {
+            if (_in >= INPUT_COUNT)
+            {
+                response("Unknown:Bad input index!");
+            }
+            else if (_func >= 0 || _level >= 0 || _has_val)
+            {
+                slider.setInputFunction(_in,
+                                        (_func >= 0) ? _func : slider.input_function[_in],
+                                        _has_val ? _val : slider.input_value[_in],
+                                        (_level >= 0) ? _level : 255);
+                send_done();
+            }
+            else
+            {
+                bool _state = false;
+                io_control.getInput(_in, _state);
+
+                String fb_string = "I";
+                fb_string += String(_in);
+                fb_string += " V";
+                fb_string += String(_state);
+                fb_string += " F";
+                fb_string += String(slider.input_function[_in]);
+                fb_string += " L";
+                fb_string += String(slider.input_active_level[_in]);
+                response(fb_string);
+            }
+        }
+        else if (_out >= 0)
+        {
+            if (_out >= OUTPUT_COUNT)
+            {
+                response("Unknown:Bad output index!");
+            }
+            else if (_func >= 0)
+            {
+                slider.setOutputFunction(_out, _func, _has_val ? _val : slider.output_value[_out]);
+                send_done();
+            }
+            else if (_has_val)
+            {
+                if (slider.output_function[_out] != OUTPUT_FUNC_NONE)
+                {
+                    response("Unknown:Output has function!");
+                }
+                else
+                {
+                    io_control.setOutput(_out, _val != 0);
+                    send_done();
+                }
+            }
+            else
+            {
+                String fb_string = "O";
+                fb_string += String(_out);
+                fb_string += " F";
+                fb_string += String(slider.output_function[_out]);
+                fb_string += " V";
+                fb_string += String(slider.output_value[_out], 2);
+                response(fb_string);
+            }
         }
         else
         {
             String fb_string = "";
-            for (uint8_t i = 0; i < IO_COUNT; i++)
+            for (uint8_t i = 0; i < INPUT_COUNT; i++)
+            {
+                bool _state = false;
+                io_control.getInput(i, _state);
+                fb_string += "I";
+                fb_string += String(i);
+                fb_string += " V";
+                fb_string += String(_state);
+                fb_string += " F";
+                fb_string += String(slider.input_function[i]);
+                fb_string += " L";
+                fb_string += String(slider.input_active_level[i]);
+                fb_string += '\n';
+            }
+            for (uint8_t i = 0; i < OUTPUT_COUNT; i++)
             {
                 fb_string += "O";
                 fb_string += String(i);
                 fb_string += " F";
-                fb_string += String(conveyor.output_function[i]);
+                fb_string += String(slider.output_function[i]);
                 fb_string += " V";
-                fb_string += String(conveyor.output_value[i]);
-                if (i < IO_COUNT - 1)
+                fb_string += String(slider.output_value[i], 2);
+                if (i < OUTPUT_COUNT - 1)
                 {
                     fb_string += '\n';
                 }
@@ -922,8 +922,6 @@ void communication::execute()
             response(fb_string);
         }
     }
-
-    // eth setting
 
     else if (keyValue == "M389")
     {
@@ -942,42 +940,62 @@ void communication::execute()
             ethernet_port = _value1.toInt();
             send_done();
         }
+        else
+        {
+            response("Unknown:Gcode!");
+        }
     }
     else if (keyValue == "M391")
     {
-        if (index_value > 2)
+        if (index_value > 3)
         {
             ethernet_ip = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
             send_done();
         }
+        else
+        {
+            response("Unknown:Gcode!");
+        }
     }
     else if (keyValue == "M392")
     {
-        if (index_value > 2)
+        if (index_value > 3)
         {
             ethernet_dns = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
             send_done();
         }
+        else
+        {
+            response("Unknown:Gcode!");
+        }
     }
     else if (keyValue == "M393")
     {
-        if (index_value > 2)
+        if (index_value > 3)
         {
             ethernet_gateway = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
             send_done();
         }
+        else
+        {
+            response("Unknown:Gcode!");
+        }
     }
     else if (keyValue == "M394")
     {
-        if (index_value > 2)
+        if (index_value > 3)
         {
             ethernet_subnet = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
             send_done();
         }
+        else
+        {
+            response("Unknown:Gcode!");
+        }
     }
     else if (keyValue == "M395")
     {
-        if (index_value > 4)
+        if (index_value > 5)
         {
             ethernet_mac[0] = _value1.toInt();
             ethernet_mac[1] = _value2.toInt();
@@ -987,6 +1005,10 @@ void communication::execute()
             ethernet_mac[5] = _value6.toInt();
 
             send_done();
+        }
+        else
+        {
+            response("Unknown:Gcode!");
         }
     }
     else if (keyValue == "M396")

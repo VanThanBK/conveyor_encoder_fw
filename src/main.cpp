@@ -1,18 +1,17 @@
 #include <Arduino.h>
 #include "pin.h"
-#include "encoder.h"
-#include "conveyor.h"
+#include "slider.h"
 #include "communication.h"
 #include "io_control.h"
 
 // func interrupt for stepper motor
 void interrupt_timer_handle()
 {
-  conveyor.__timer_handle();
+  slider.__timer_handle();
 }
 void interrupt_tp_timer_handle()
 {
-  conveyor.__tp_timer_handle();
+  slider.__tp_timer_handle();
 }
 
 void setup()
@@ -24,9 +23,8 @@ void setup()
   Serial2.end();
   Serial3.end();
   
-  encoder.init();
   io_control.init();
-  conveyor.init();
+  slider.init();
   control_port.init();
 
   ExecuteStepTimer.attachInterrupt(TIMER_CH1, interrupt_timer_handle);
@@ -36,19 +34,18 @@ void setup()
   control_port.init();
   io_control.init();
 
-  encoder.init();
-  conveyor.init();
+  slider.init();
 
-  conveyor.ExecuteStepTimer->attachInterrupt(interrupt_timer_handle);
-  conveyor.TurnPinTimer->attachInterrupt(interrupt_tp_timer_handle);
-  
+  slider.ExecuteStepTimer->attachInterrupt(interrupt_timer_handle);
+  slider.TurnPinTimer->attachInterrupt(interrupt_tp_timer_handle);
+
 #endif
+
 }
 
 void loop()
 {
   control_port.execute();
   io_control.execute();
-  encoder.execute();
-  conveyor.execute();
+  slider.execute();
 }

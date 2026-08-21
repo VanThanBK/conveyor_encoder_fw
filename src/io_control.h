@@ -9,7 +9,8 @@
 
 #include "pin.h"
 
-#define IO_COUNT 4
+#define INPUT_COUNT 6
+#define OUTPUT_COUNT 4
 #define IO_TIMER_PERIOD_FEEDBACK 2000
 
 class IOControl
@@ -26,9 +27,9 @@ public:
     void execute();
 
 private:
-    bool input_state[IO_COUNT];
-    bool input_state_last[IO_COUNT];
-    bool is_auto_feedback[IO_COUNT];
+    bool input_state[INPUT_COUNT];
+    bool input_state_last[INPUT_COUNT];
+    bool is_auto_feedback[INPUT_COUNT];
 
     uint32_t last_time_auto_feedback;
 };

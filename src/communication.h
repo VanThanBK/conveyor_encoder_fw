@@ -8,8 +8,7 @@
 #endif
 
 
-#include "encoder.h"
-#include "conveyor.h"
+#include "slider.h"
 #include <SPI.h>
 #include "Ethernet.h"
 
@@ -18,6 +17,9 @@
 #else
 #define USBPort Serial
 #endif
+
+// Maximum space-separated parameters accepted on one command line.
+#define MAX_GCODE_VALUES 16
 
 class communication
 {
@@ -38,7 +40,7 @@ private:
 
     String gcode;
 
-    EthernetServer *eth_server;
+    EthernetServer *eth_server = NULL;
     EthernetClient eth_client;
 
     uint16_t ethernet_port;
@@ -54,11 +56,11 @@ private:
     void save_eth();
     void load_eth();
 
-    void send_encoder_pos();
-    void send_encoder_infor();
-
-    void send_conveyor_infor();
+    void send_mechanics_infor();
+    void send_slider_status();
+    void send_home_infor();
     void send_ethernet_infor();
+
     void send_ethernet_ip();
     void reset_eth_ips();
 
@@ -67,9 +69,6 @@ public:
     void execute();
     void response(String _mes);
     void send_done();
-
-    void send_input_a_state();
-    void send_input_b_state();
 
     bool func_led_state = false;
     bool run_led_state = false;
