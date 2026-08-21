@@ -10,8 +10,6 @@ static const char *move_error(MOVE_RESULT _result)
         return "Unknown:Slider busy!";
     case MOVE_ERR_NOT_HOMED:
         return "Unknown:Not homed! Send M320";
-    case MOVE_ERR_LIMIT:
-        return "Unknown:Out of travel!";
     case MOVE_ERR_FAULT:
         return "Unknown:Fault latched! Send M327 C";
     case MOVE_ERR_RANGE:
@@ -642,7 +640,8 @@ void communication::execute()
     }
     else if (keyValue == "M325")
     {
-        // Centre homing is fixed and only starts on M320. R handles motor wiring.
+        // Negative-end homing on PB7 is fixed and only starts on M320. R handles
+        // motor wiring direction.
         uint8_t _reverse = 255;
         bool _valid = true;
 

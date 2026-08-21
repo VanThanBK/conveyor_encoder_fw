@@ -54,24 +54,23 @@
 #define MIN_PULSE_PER_MM 0.01f
 #define MAX_PULSE_PER_MM 100000.0f
 
-// Fixed centre-homing hardware and motion. Homing only starts on M320; motor
-// direction remains configurable for different wiring.
-#define DEFAULT_HOME_INPUT 0        // Input 1, PA12
-#define DEFAULT_HOME_ACTIVE_LEVEL 1 // active HIGH after board conditioning
+// The two NPN sensors use the old quadrature encoder channels. Their open-
+// collector outputs drive the isolated V2 input circuit and arrive at the MCU as
+// active HIGH. Input 5 is both home and the negative hard limit; Input 6 is the
+// positive hard limit. Both are direction-aware outside homing.
+#define NEGATIVE_LIMIT_INPUT 4 // Input 5, PB7: home + negative limit
+#define POSITIVE_LIMIT_INPUT 5 // Input 6, PB6: positive limit
+#define DEDICATED_LIMIT_ACTIVE_LEVEL 1
+
+// Fixed end-homing motion. Homing only starts on M320; motor direction remains
+// configurable for different wiring.
+#define DEFAULT_HOME_INPUT NEGATIVE_LIMIT_INPUT
+#define DEFAULT_HOME_ACTIVE_LEVEL DEDICATED_LIMIT_ACTIVE_LEVEL
 #define DEFAULT_HOME_SPEED 20       // mm/s, first seek
 #define DEFAULT_HOME_SPEED_SLOW 5   // mm/s, precise re-seek
 #define DEFAULT_HOME_BACKOFF 5      // mm
-#define DEFAULT_HOME_OFFSET 0       // centre is position zero
+#define DEFAULT_HOME_OFFSET 0       // negative home sensor is position zero
 #define DEFAULT_INPUT_ACTIVE_LEVEL(i) 1
-
-// Dedicated travel-limit inputs on the old quadrature encoder header. The J5
-// differential pairs pass through HCPL-2630 optocouplers and a 74HC14 inverter,
-// so an energized input arrives at the MCU as HIGH. They are direction-aware: a
-// triggered switch only stops motion heading farther into that end, allowing the
-// axis to move away during recovery.
-#define NEGATIVE_LIMIT_INPUT 4 // Input 5, PB7
-#define POSITIVE_LIMIT_INPUT 5 // Input 6, PB6
-#define DEDICATED_LIMIT_ACTIVE_LEVEL 1
 
 #define HOMING_TIMEOUT 60000  // ms a single homing phase may take before it aborts
 #define HOME_SWITCH_DEBOUNCE 3 // ms the switch must stay triggered to count
@@ -80,11 +79,11 @@
 typedef enum
 {
     FAULT_NONE = 0,
-    FAULT_NEGATIVE_LIMIT, // ran into the negative-end switch
-    FAULT_POSITIVE_LIMIT, // ran into the positive-end switch
-    FAULT_SOFT_LIMIT, // ran past the configured travel
-    FAULT_HOMING,     // homing timed out or the switch stayed stuck
-    FAULT_ESTOP,      // emergency stop
+    FAULT_NEGATIVE_LIMIT = 1, // ran into the PB7 home/negative sensor
+    FAULT_POSITIVE_LIMIT = 2, // ran into the PB6 positive sensor
+    // Code 3 stays unused for protocol compatibility with older hosts.
+    FAULT_HOMING = 4, // homing timed out or the sensor stayed stuck
+    FAULT_ESTOP = 5,  // emergency stop
 } FAULT_CODE;
 
 // why a motion request was refused, so the port can answer with a real reason
@@ -93,7 +92,6 @@ typedef enum
     MOVE_OK = 0,
     MOVE_ERR_BUSY,      // another move or a homing sequence is running
     MOVE_ERR_NOT_HOMED, // absolute moves need a known zero first
-    MOVE_ERR_LIMIT,     // outside the configured travel
     MOVE_ERR_FAULT,     // a fault is latched, clear it with M327 C
     MOVE_ERR_RANGE,     // parameter out of range
 } MOVE_RESULT;
@@ -183,7 +181,7 @@ public:
     float screw_lead;
     bool reverse_slider;
 
-    // fixed homing values plus the two persisted options below
+    // fixed negative-end homing values plus the persisted direction option
     uint8_t home_input;
     uint8_t home_active_level;
     float home_speed;
@@ -257,8 +255,6 @@ private:
     // homing state
     volatile HOMING_STATE homing_state;
     volatile bool home_move_done;
-    bool homing_seek_positive;
-    bool homing_reversed_at_limit;
     uint32_t homing_phase_start;
     uint32_t home_switch_time;
     bool home_switch_raw_last;
@@ -308,7 +304,6 @@ private:
     bool __home_switch_active();
     bool __negative_limit_active();
     bool __positive_limit_active();
-    void __reverse_homing_from_limit(bool _hit_negative);
     void __move_raw(float _speed);
     void __stop_raw();
     void __start_home_backoff();
@@ -316,6 +311,7 @@ private:
     bool __position_to_steps(double _pos, int64_t &_steps);
     float __steps_to_position(int64_t _steps);
     bool __start_move(double _pos, bool _from_gcode);
+    MOVE_RESULT __set_position(double _pos, bool _from_gcode, bool _require_homed);
     void __cancel_pending_move(const char *_message);
     void __begin_stop_ramp();
     void __execute_stop_ramp();

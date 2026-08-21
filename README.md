@@ -13,10 +13,10 @@ Ten commands drive the whole slider:
 
 | | |
 | --- | --- |
-| `M320` homing | `M325` homing & travel limits |
+| `M320` homing | `M325` motor direction |
 | `M321` moving speed | `M326` status |
 | `M322` position (absolute or relative) | `M327` stop, e-stop, clear fault |
-| `M323` motor enable | `M328` mechanics (motor, screw, pulse timing) |
+| `M323` motor enable | `M328` mechanics (motor pulses/rev, screw lead) |
 | `M324` acceleration | `M329` digital IO |
 
 Plus the shared DeltaX network commands `M389`–`M399` and the identity strings
@@ -30,15 +30,19 @@ Plus the shared DeltaX network commands `M389`–`M399` and the identity strings
 * Position moves with a trapezoid ramp, absolute or relative, answered when the
   axis arrives. A new target while moving **supersedes** the old one rather than
   being refused.
-* Homing with back-off and slow re-approach, optionally at power up.
+* Relative moves remain available before homing; absolute moves require a known
+  home position.
+* Fixed negative-end homing with back-off and slow re-approach using the negative
+  NPN endstop on the old encoder connector.
 * **Controlled stop** that keeps the position, separate from an emergency stop that
   cuts the pulses and drops the homed flag.
-* Travel protection on both ends: home switch, far-end switch and a soft limit.
+* Direction-aware travel protection using the two dedicated NPN endstops.
 * **Latched faults** — after a limit hit or a failed homing the axis refuses to move
   until the fault is acknowledged.
 * Live position during every kind of motion, usable as a **position-compare output**
   to trigger other machines.
-* 6 digital inputs / 4 digital outputs with assignable functions, USB + Ethernet.
+* 4 configurable digital inputs, 2 dedicated NPN endstops and 4 digital outputs,
+  USB + Ethernet.
 
 ## Layout
 
@@ -67,7 +71,8 @@ free-running velocity mode and `M311`; the duplicate `M312`/`M313`; raw motor-pi
 control `M314`; the calibration command `M315`, whose parts moved into `M324`,
 `M327` and `M328`; and the IO commands `M330`–`M333`, folded into `M329`.
 
-PB7 and PB6, the old encoder header, are now digital inputs 5 and 6.
+PB7 and PB6, the old encoder header, are now reserved for the negative/home and
+positive NPN endstops (digital inputs 5 and 6).
 
 ## Step generator
 
@@ -90,14 +95,33 @@ against a real driver.
 
 ## Wiring notes
 
-**Home switch.** Read on Input 1 (PA12) by default, treated as triggered when the
-input reads HIGH, homing toward negative. Change with `M325`, e.g. `M325 I1 L0 D1`.
-Outside of homing the same switch acts as a hard limit. A machine with no home
-switch needs `M325 G0 H0`.
+**Two NPN endstops.** Input 5 (PB7), on the old encoder channel, is the
+negative/home endstop. Input 6 (PB6) is the positive endstop. Both arrive at the
+MCU active HIGH through the V2 board's isolated input circuit. Homing always moves
+toward the Input 5 endstop, backs off 5 mm and re-approaches it at 5 mm/s. Outside
+homing, both endstops are direction-aware so the axis may move away from a
+triggered endstop. The two inputs are reserved and cannot be assigned an `M329`
+function.
 
-**Input levels.** Inputs 1..4 are conditioned on the board and read active-high.
-Inputs 5 and 6 (PB7 / PB6) carry the MCU pull-up, so they idle HIGH and default to
-active-low. A normally-closed safety button needs `L0` whichever input it sits on.
+The endstop assignments and homing values are compile-time settings; `M325` only
+changes motor direction inversion with `R0` or `R1`.
+
+For typical three-wire NPN endstops on the old encoder connector:
+
+* connect both endstop brown wires and `EN_A+` / `EN_B+` to `VCC_ENCODER`;
+* connect both blue wires to `GND_ENCODER`;
+* connect the negative/home endstop's black output to `EN_A-` (PB7 after
+  conditioning);
+* connect the positive endstop's black output to `EN_B-` (PB6 after
+  conditioning).
+
+Select `VCC_ENCODER` to match the endstop supply supported by the board. Verify the
+inputs with `M329 I4` and `M329 I5` before connecting the motor: each must read
+`V0` when clear and `V1` when its endstop is active.
+
+**Input levels.** All six inputs are conditioned by the V2 board and read
+active-high. Inputs 1..4 can still have their action level changed with `M329 L`;
+the two dedicated endstops remain fixed active-high.
 
 ## EEPROM
 
@@ -112,12 +136,13 @@ Settings survive a firmware upgrade except where noted:
 * **Input functions** moved to 114 and grew to six entries; re-assign them with
   `M329`. Input levels live at 144..149.
 
-Network settings, travel limits and homing configuration keep their addresses.
+Network settings and motor direction keep their existing addresses. Homing values
+and end-limit assignments are fixed in firmware and are not stored in EEPROM.
 
 ## Build notes
 
 1. Reconfig the SPI_ETHERNET_SETTINGS clock to 4MHz in
-   `.pio\libdeps\genericSTM32F103C8\Ethernet\src\utility\w5100.h`:
+   `.pio\libdeps\genericSTM32F103CB\Ethernet\src\utility\w5100.h`:
 
    ```cpp
    #define SPI_ETHERNET_SETTINGS SPISettings(4000000, MSBFIRST, SPI_MODE0)

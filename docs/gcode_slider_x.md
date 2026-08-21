@@ -1,6 +1,6 @@
 # GCODES FOR SLIDER X
 
-Firmware `3.0.0` — STM32F103 mainboard `2.0`.
+Firmware `1.0.1` — STM32F103 mainboard `2.0`.
 
 Commands are plain text lines terminated with `\n`, accepted on the USB/serial port
 (115200 baud) and on the Ethernet port. A command answers `Ok` when it has been
@@ -11,7 +11,7 @@ The whole slider is driven by ten commands, `M320`–`M329`.
 | | | | |
 | --- | --- | --- | --- |
 | `M320` homing | `M321` speed | `M322` position | `M323` motor enable |
-| `M324` acceleration | `M325` homing & limits | `M326` status | `M327` stop & fault |
+| `M324` acceleration | `M325` motor direction | `M326` status | `M327` stop & fault |
 | `M328` mechanics | `M329` digital IO | | |
 
 **`M320` and `M322` answer when the motion ends**, which can be seconds later.
@@ -25,9 +25,10 @@ Two kinds of line arrive unsolicited: `I<idx> V<state>` from input auto-feedback
 
 ## M320 - Homing
 
-Moves back to the home switch, backs off, re-approaches slowly and sets the
-current position to the home offset. Motion is refused while it runs; `M327`
-aborts it.
+Moves toward the fixed negative/home NPN endstop on Input 5 (index 4 / PB7), backs
+off 5 mm, re-approaches at 5 mm/s and sets the position to zero. Input 5 remains
+the negative endstop during normal motion. Motion is refused while homing runs;
+`M327` aborts it.
 
 ```
 M320
@@ -38,11 +39,13 @@ M320
 | `Ok` | homing finished, position is now the home offset |
 | `Unknown:Slider busy!` | a move or another homing sequence is running |
 | `Unknown:Fault latched! Send M327 C` | acknowledge the previous fault first |
-| `Unknown:Homing timeout!` | a phase ran longer than 60 s — check the wiring and `M325 L` |
-| `Unknown:Home switch stuck!` | still triggered after backing off — increase `M325 B` |
+| `Unknown:Homing timeout!` | a phase ran longer than 60 s — check the Input 5 endstop, direction and wiring |
+| `Unknown:Home switch stuck!` | the Input 5 endstop remained active after the fixed 5 mm back-off |
+| `Unknown:Homing failed!` | the Input 6 endstop was reached unexpectedly during the back-off |
 | `Unknown:Homing stopped!` | aborted by `M327`, `M323` or a stop input |
 
-The last three also latch fault code `4`.
+Timeout, a stuck endstop and failure to find the endstop latch fault code `4`. An
+explicitly stopped homing sequence does not latch a fault.
 
 ---
 
@@ -64,13 +67,19 @@ raising the speed now would leave too little room to stop on target.
 
 ## M322 - Set Desired Position
 
-Move to a point relative to the home point. `Ok` arrives when the axis gets there.
+Move to an absolute position referenced to home, or move by a relative distance.
+`Ok` arrives when the axis gets there.
 
 ```
 M322 150     ;absolute: go to 150 mm
 M322 R-20    ;relative: back off 20 mm
 M322         ;-> P:150.00  (current position)
 ```
+
+Absolute moves require a completed `M320`. Relative moves are allowed while
+`H:0`, including before the first home and after disabling the driver. They move
+by the requested pulse distance but do not set the homed flag; the reported
+position before home is only a local software coordinate, not a machine zero.
 
 Sent while another move is running, the new target **supersedes** it: the axis
 ramps down and drives to the new target. The superseded command is answered
@@ -81,20 +90,20 @@ written.
 | Reply | Meaning |
 | --- | --- |
 | `Ok` | the slider reached the target |
-| `Unknown:Not homed! Send M320 or M325 H0` | no known zero yet |
-| `Unknown:Out of travel!` | outside the soft travel limit set with `M325 T` |
+| `Unknown:Not homed! Send M320` | an absolute move was requested without a known zero |
 | `Unknown:Slider busy!` | homing is running |
 | `Unknown:Fault latched! Send M327 C` | acknowledge the previous fault first |
 | `Unknown:Move superseded!` | replaced by a newer target |
 | `Unknown:Move stopped!` | cancelled by `M327`, `M323` or a stop input |
-| `Unknown:Home limit hit!` / `Unknown:End limit hit!` | ran into a limit switch |
+| `Unknown:Negative limit hit!` / `Unknown:Positive limit hit!` | ran into an endstop |
 
 ---
 
 ## M323 - Disable Stepper Motor
 
-Releases the motor so the slider can be moved by hand. The homed flag is cleared —
-home again before using `M322`. Any motion command re-enables the driver.
+Releases the motor so the slider can be moved by hand. The homed flag is cleared.
+Home again before using an absolute `M322`; relative `M322 R...` remains available.
+Any motion command re-enables the driver.
 
 ```
 M323       ;disable stepper
@@ -115,41 +124,45 @@ controlled way.
 
 ---
 
-## M325 - Homing and Limits
+## M325 - Motor Direction and Fixed Homing Configuration
 
-Every parameter is optional; the ones left out keep their current value. Stored in
-EEPROM.
-
-```
-M325 [I<n>] [L<0|1>] [D<0|1>] [S<mm/s>] [F<mm/s>] [B<mm>] [O<mm>]
-     [T<mm>] [G<0|1>] [H<0|1>] [J<n>] [K<0|1>] [A<0|1>] [R<0|1>]
-```
-
-| Par | Meaning | Default |
-| --- | --- | --- |
-| `I` | input wired to the home switch (0..5) | `0` |
-| `L` | level that means "home switch triggered" | `1` |
-| `D` | homing direction: `0` toward negative, `1` toward positive | `0` |
-| `S` | fast seek speed, mm/s | `40` |
-| `F` | slow re-approach speed, mm/s | `5` |
-| `B` | back-off distance, mm | `5` |
-| `O` | position assigned at the switch, mm | `0` |
-| `T` | travel length in mm from `O` away from the switch; `0` disables | `0` |
-| `G` | `1` = the home switch also stops motion running into it | `1` |
-| `H` | `1` = refuse position moves until homed | `1` |
-| `J` | input wired to the **far end** limit switch, `255` = none | `255` |
-| `K` | level that means "end switch triggered" | `1` |
-| `A` | `1` = home automatically at power up | `0` |
-| `R` | `1` inverts the direction output | `0` |
-
-Sent bare it reports everything:
+The two NPN endstop assignments, active levels, homing speeds, back-off and zero
+offset are fixed in firmware. `M325` only changes the polarity of the motor
+direction output; the setting is stored in EEPROM.
 
 ```
-I:0 L:1 D:0 S:40.00 F:5.00 B:5.00 O:0.00 T:0.00 G:1 H:1 J:255 K:1 A:0 R:0
+M325 R<0|1>    ;set motor direction inversion
+M325           ;read the fixed homing configuration and current inversion
 ```
 
-A machine with no home switch needs `M325 G0 H0`, otherwise every `M322` answers
-`Unknown:Not homed!`.
+| Par | Meaning |
+| --- | --- |
+| `R0` | normal direction-output polarity |
+| `R1` | inverted direction-output polarity |
+
+Any parameter other than `R`, or an `R` value outside `0..1`, is rejected with
+`Unknown:Bad M325 parameter!`.
+
+The readback format is:
+
+```
+I:4 L:1 S:20.00 F:5.00 B:5.00 O:0.00 R:<0|1> N:4 P:5
+```
+
+| Field | Fixed meaning |
+| --- | --- |
+| `I:4 L:1` | negative/home NPN endstop on Input 5 (index 4 / PB7), active HIGH |
+| `S:20.00` | initial search speed, 20 mm/s |
+| `F:5.00` | slow re-approach speed, 5 mm/s |
+| `B:5.00` | back-off distance, 5 mm |
+| `O:0.00` | position assigned at the Input 5 endstop, 0 mm |
+| `R` | current direction inversion |
+| `N:4 P:5` | negative/home and positive endstops on Input 5/6 (PB7/PB6), active HIGH |
+
+Absolute position moves require a completed `M320`; relative moves remain
+available before homing. There is no `M325` option to bypass homing for absolute
+moves. The current firmware has no configurable soft-travel limit and does not
+home automatically at power-up.
 
 ---
 
@@ -185,10 +198,10 @@ limit hit or a failed homing the position is not trustworthy. Recovery is normal
 | Code | Cause |
 | --- | --- |
 | `0` | none |
-| `1` | ran into the home end switch |
-| `2` | ran into the far end switch |
-| `3` | ran past the configured travel |
-| `4` | homing timed out or the switch stayed stuck |
+| `1` | ran into the negative endstop (Input 5) |
+| `2` | ran into the positive endstop (Input 6) |
+| `3` | reserved; not raised by the current firmware |
+| `4` | homing timed out or the Input 5 endstop stayed active |
 | `5` | emergency stop |
 
 The interrupted move is answered before `M327` replies `Ok`, and a queued retarget
@@ -248,6 +261,12 @@ for 30 µs, which suits every common step and servo driver.
 
 Six inputs (0..5) and four outputs (0..3).
 
+Inputs 4 and 5 (human-facing Input 5/6) are reserved for the two NPN endstops.
+Input 5 is the negative/home endstop and Input 6 is the positive endstop. In G-code
+they are addressed as `I4` and `I5`. They may be read or monitored, but attempts
+to assign them an input function keep the function at `0` and the active level at
+`1`.
+
 ```
 M329 P<i> V<0|1>          set output i
 M329 P<i> F<f> [V<val>]   assign a function to output i
@@ -278,15 +297,17 @@ Output functions (`F`):
 | `3` | position compare: ON while the live position is at or past `V` mm — switches **during** the move, so it can trigger a camera or a robot |
 | `4` | ON while a fault is latched |
 
-`L` is the level that counts as pressed. **Inputs 0..3 are conditioned on the board
-and read active-high (`L1`, the default). Inputs 4 and 5 are PB7 and PB6 — the old
-quadrature encoder header — configured with the MCU pull-up, so they idle HIGH and
-default to `L0`.** A normally-closed safety button needs `L0` on whichever input it
-uses.
+`L` is the level that counts as pressed. Inputs 0..3 are conditioned by the V2
+board and default to active-high (`L1`); their action level can be changed. Inputs
+4 and 5 are PB7 and PB6 on the old quadrature encoder channels. They are also
+conditioned by the board, reserved for the negative/home and positive endstops,
+and fixed active-high.
 
 Motion started from an input never writes to the command ports. A jog button that
 gets refused simply does nothing, so wire output function `2` or `4` to a lamp if
 the operator needs to see why.
+
+Input function `1` is also available before homing and does not set the homed flag.
 
 ---
 
@@ -315,7 +336,7 @@ the operator needs to see why.
 M328 R1000 L5                   ;1000 pulse/rev motor, 5 mm lead screw
 M324 500                        ;500 mm/s2
 M321 100                        ;100 mm/s, the ceiling at 200 pulse/mm
-M325 I0 L1 D0 B5 T400 J1 K1     ;home switch on input 1, end switch on input 2, 400 mm travel
+M325 R0                         ;normal direction polarity; use R1 if reversed
 M320                            ;home, wait for Ok
 M322 150                        ;move to 150 mm, wait for Ok
 ```

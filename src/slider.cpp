@@ -1,5 +1,10 @@
 #include "slider.h"
 
+static_assert(DEFAULT_HOME_INPUT == NEGATIVE_LIMIT_INPUT,
+              "The PB7 sensor must be both home and the negative limit");
+static_assert(NEGATIVE_LIMIT_INPUT != POSITIVE_LIMIT_INPUT,
+              "Home/negative and positive sensors must use different inputs");
+
 void Slider::pinInit()
 {
     pinMode(MOTOR_PUL_PIN, OUTPUT);
@@ -104,11 +109,6 @@ void Slider::load_data()
         {
             input_function[i] = INPUT_FUNC_NONE;
         }
-        if (i == NEGATIVE_LIMIT_INPUT || i == POSITIVE_LIMIT_INPUT)
-        {
-            // Inputs 5/6 are reserved as directional hard limits.
-            input_function[i] = INPUT_FUNC_NONE;
-        }
         input_value[i] = getRawFloat(INPUT_VALUE_ADDRESS + i * 4);
         if (isnan(input_value[i]))
         {
@@ -118,6 +118,14 @@ void Slider::load_data()
         if (input_active_level[i] > 1)
         {
             input_active_level[i] = DEFAULT_INPUT_ACTIVE_LEVEL(i);
+        }
+        if (i == NEGATIVE_LIMIT_INPUT || i == POSITIVE_LIMIT_INPUT)
+        {
+            // The two NPN sensors are fixed active-high and cannot also launch
+            // an M329 action, regardless of values left by an older firmware.
+            input_function[i] = INPUT_FUNC_NONE;
+            input_value[i] = 0;
+            input_active_level[i] = DEDICATED_LIMIT_ACTIVE_LEVEL;
         }
     }
 
@@ -381,8 +389,6 @@ void Slider::init()
     step_delta = 0;
     homing_state = HOMING_NONE;
     home_move_done = false;
-    homing_seek_positive = false;
-    homing_reversed_at_limit = false;
     homing_phase_start = 0;
     home_switch_time = 0;
     home_switch_raw_last = false;
@@ -587,7 +593,8 @@ void Slider::__start_home_backoff()
         return;
     }
 
-    __move_raw(homing_seek_positive ? -home_speed_slow : home_speed_slow);
+    // Home is the negative-end sensor, so back off toward positive.
+    __move_raw(home_speed_slow);
 }
 
 void Slider::__execute_home_pos()
@@ -636,26 +643,8 @@ MOVE_RESULT Slider::home(bool _from_gcode)
     home_switch_raw_last = false;
     reply_pending = _from_gcode;
 
-    // Search negative first. If an end switch is already held, move inward. If
-    // the negative end is reached before home, the guard reverses the search once.
-    homing_seek_positive = false;
-    homing_reversed_at_limit = false;
-    bool negative_raw = !DEDICATED_LIMIT_ACTIVE_LEVEL;
-    bool positive_raw = !DEDICATED_LIMIT_ACTIVE_LEVEL;
-    io_control.getInput(NEGATIVE_LIMIT_INPUT, negative_raw);
-    io_control.getInput(POSITIVE_LIMIT_INPUT, positive_raw);
-    if (negative_raw == (bool)DEDICATED_LIMIT_ACTIVE_LEVEL)
-    {
-        homing_seek_positive = true;
-        homing_reversed_at_limit = true;
-    }
-    else if (positive_raw == (bool)DEDICATED_LIMIT_ACTIVE_LEVEL)
-    {
-        homing_seek_positive = false;
-        homing_reversed_at_limit = true;
-    }
-
-    // already resting on the switch: skip the fast seek, back off first
+    // Already resting on the negative home sensor: skip the fast seek and move
+    // away from it before the slow re-approach.
     bool raw = false;
     io_control.getInput(home_input, raw);
     if (raw == (bool)home_active_level)
@@ -666,7 +655,7 @@ MOVE_RESULT Slider::home(bool _from_gcode)
     }
 
     homing_state = HOMING_SEEK;
-    __move_raw(homing_seek_positive ? home_speed : -home_speed);
+    __move_raw(-home_speed);
     return MOVE_OK;
 }
 
@@ -750,7 +739,7 @@ void Slider::__execute_homing()
             home_switch_raw_last = false;
             home_switch_time = millis();
             homing_state = HOMING_SEEK_SLOW;
-            __move_raw(homing_seek_positive ? home_speed_slow : -home_speed_slow);
+            __move_raw(-home_speed_slow);
         }
         break;
 
@@ -811,28 +800,10 @@ bool Slider::__positive_limit_active()
     return active && (millis() - positive_limit_time >= HOME_SWITCH_DEBOUNCE);
 }
 
-void Slider::__reverse_homing_from_limit(bool _hit_negative)
-{
-    if (homing_reversed_at_limit)
-    {
-        // Both ends were reached without seeing the centre sensor.
-        stopEmergency(FAULT_HOMING);
-        return;
-    }
-
-    __stop_raw();
-    homing_reversed_at_limit = true;
-    homing_seek_positive = _hit_negative;
-    homing_state = HOMING_SEEK;
-    homing_phase_start = millis();
-    home_switch_raw_last = false;
-    home_switch_time = millis();
-    __move_raw(homing_seek_positive ? home_speed : -home_speed);
-}
-
-// Both physical ends are direction-aware. During the fast home search the first
-// end reached reverses the scan; reaching the opposite end means the centre
-// sensor is missing. This removes the need for a configured homing direction.
+// Outside homing, the two NPN sensors are direction-aware hard limits. During
+// homing, PB7 is owned by the homing state machine itself: treating it as a hard
+// limit here would stop the axis before the home sequence could back off and
+// re-approach. PB6 still protects an unexpectedly long positive back-off.
 void Slider::__execute_travel_guard()
 {
     if (current_speed == 0)
@@ -840,33 +811,26 @@ void Slider::__execute_travel_guard()
         return;
     }
 
+    if (homing_state != HOMING_NONE)
+    {
+        if (!current_direction && __positive_limit_active())
+        {
+            stopEmergency(FAULT_HOMING);
+        }
+        return;
+    }
+
     if (current_direction && __negative_limit_active())
     {
-        if (homing_state == HOMING_SEEK)
-        {
-            __reverse_homing_from_limit(true);
-            return;
-        }
         stopEmergency(FAULT_NEGATIVE_LIMIT);
         return;
     }
 
     if (!current_direction && __positive_limit_active())
     {
-        if (homing_state == HOMING_SEEK)
-        {
-            __reverse_homing_from_limit(false);
-            return;
-        }
         stopEmergency(FAULT_POSITIVE_LIMIT);
         return;
     }
-
-    if (homing_state != HOMING_NONE)
-    {
-        return;
-    }
-
 }
 
 void Slider::setHomeConfig(uint8_t _reverse)
@@ -1080,7 +1044,7 @@ bool Slider::__start_move(double _pos, bool _from_gcode)
     return true;
 }
 
-MOVE_RESULT Slider::setPosition(double _pos, bool _from_gcode)
+MOVE_RESULT Slider::__set_position(double _pos, bool _from_gcode, bool _require_homed)
 {
     if (fault_code != FAULT_NONE)
     {
@@ -1093,8 +1057,9 @@ MOVE_RESULT Slider::setPosition(double _pos, bool _from_gcode)
         return MOVE_ERR_BUSY;
     }
 
-    // an absolute target is meaningless until the slider knows where zero is
-    if (!is_homed)
+    // Absolute coordinates are referenced to home. Relative moves only need a
+    // pulse distance, so they remain useful before homing and during recovery.
+    if (_require_homed && !is_homed)
     {
         return MOVE_ERR_NOT_HOMED;
     }
@@ -1136,12 +1101,19 @@ MOVE_RESULT Slider::setPosition(double _pos, bool _from_gcode)
     return MOVE_OK;
 }
 
+MOVE_RESULT Slider::setPosition(double _pos, bool _from_gcode)
+{
+    return __set_position(_pos, _from_gcode, true);
+}
+
 MOVE_RESULT Slider::movePositionRelative(double _distance, bool _from_gcode)
 {
     // Chain on the unquantized command coordinate. Repeated sub-step relative
     // moves therefore accumulate until they cross a real motor-step boundary.
+    // This coordinate may be arbitrary before home, but the emitted distance is
+    // still exact and is not promoted to a known absolute position.
     double _base = has_pending_move ? pending_position : commanded_position;
-    return setPosition(_base + _distance, _from_gcode);
+    return __set_position(_base + _distance, _from_gcode, false);
 }
 
 void Slider::setMoveSpeed(float _speed)
@@ -1309,9 +1281,6 @@ void Slider::stopEmergency(FAULT_CODE _fault)
         break;
     case FAULT_POSITIVE_LIMIT:
         _message = "Unknown:Positive limit hit!";
-        break;
-    case FAULT_SOFT_LIMIT:
-        _message = "Unknown:Out of travel!";
         break;
     case FAULT_HOMING:
         _message = "Unknown:Homing failed!";

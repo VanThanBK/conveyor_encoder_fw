@@ -2,8 +2,9 @@
 
 // ---------------------------------------------------------------- pin map ---
 
-// 6 digital inputs. Inputs 5 and 6 sit on the old quadrature encoder header and
-// are reserved by Slider as the active-high negative and positive travel limits.
+// 6 digital inputs. Inputs 5 and 6 sit on the old quadrature encoder header.
+// Slider reserves Input 5 as the active-high NPN home/negative-limit sensor and
+// Input 6 as the active-high NPN positive-limit sensor.
 #define INPUT_1_PIN PA12
 #define INPUT_2_PIN PA11
 #define INPUT_3_PIN PB14
@@ -25,8 +26,8 @@
 #define MOTOR_EN_PIN PB5
 
 // Stepper driver enable pin polarity (the driver is enabled at power up)
-#define MOTOR_ENABLE_LEVEL HIGH
-#define MOTOR_DISABLE_LEVEL LOW
+#define MOTOR_ENABLE_LEVEL LOW
+#define MOTOR_DISABLE_LEVEL HIGH
 
 #define ETH_RESET_PIN PA3
 
@@ -61,7 +62,7 @@
 #define POS_SPEED_ADDRESS 85       // 85..88 (position move speed M313/M321, raw float)
 
 // 89..113 held configurable homing values. Home and travel protection are fixed
-// to the centre sensor plus the two physical end switches, so this block is free.
+// to the two NPN sensors on PB7/PB6, so this block is free.
 
 #define INPUT_FUNCTION_ADDRESS 114 // 114..119 (function code of 6 inputs)
 #define INPUT_VALUE_ADDRESS 120    // 120..143 (value of 6 inputs, 4 bytes each)
@@ -79,5 +80,5 @@
 #define MAIN_BOARD_VERSION "2.0"
 
 #define DEVICE_NAME "SliderX"
-#define FIRMWARE_DATE "19/8/2026"
-#define FIRMWARE_VERSION "3.0.0"
+#define FIRMWARE_DATE "21/8/2026"
+#define FIRMWARE_VERSION "1.0.1"
