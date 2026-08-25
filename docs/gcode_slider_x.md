@@ -6,20 +6,22 @@ Commands are plain text lines terminated with `\n`, accepted on the USB/serial p
 (115200 baud) and on the Ethernet port. A command answers `Ok` when it has been
 carried out, or `Unknown:<reason>` when it has not.
 
-The whole slider is driven by ten commands, `M320`–`M329`.
+The motion interface uses `M320`–`M328`; the digital IO interface uses
+`M330`–`M333`.
 
 | | | | |
 | --- | --- | --- | --- |
 | `M320` homing | `M321` speed | `M322` position | `M323` motor enable |
 | `M324` acceleration | `M325` motor direction | `M326` status | `M327` stop & fault |
-| `M328` mechanics | `M329` digital IO | | |
+| `M328` mechanics | | | |
+| `M330` set output | `M331` read input / feedback | `M332` configure input | `M333` configure output |
 
 **`M320` and `M322` answer when the motion ends**, which can be seconds later.
 Exactly one reply is sent per request, but a host that keeps sending while the
 axis moves will see those replies first. Wait for the reply, or match loosely.
 
 Two kinds of line arrive unsolicited: `I<idx> V<state>` from input auto-feedback
-(opt-in with `M329 T`), and `Fault:<code>` when a fault latches.
+(opt-in with `M331 T`), and `Fault:<code>` when a fault latches.
 
 ---
 
@@ -55,7 +57,7 @@ Speed used by `M322`, in mm/s. Stored in EEPROM and clamped to what the step
 generator can produce — see `M328`.
 
 ```
-M321 100    ;100 mm/s
+M321 V100   ;100 mm/s
 M321        ;-> V:100.00
 ```
 
@@ -115,7 +117,7 @@ M323 E1    ;enable stepper again
 ## M324 - Set Acceleration
 
 ```
-M324 500    ;500 mm/s2
+M324 A500   ;500 mm/s2
 M324        ;-> A:500.00
 ```
 
@@ -257,57 +259,128 @@ for 30 µs, which suits every common step and servo driver.
 
 ---
 
-## M329 - Digital IO
+## Digital IO Functions
 
 Six inputs (0..5) and four outputs (0..3).
 
 Inputs 4 and 5 (human-facing Input 5/6) are reserved for the two NPN endstops.
 Input 5 is the negative/home endstop and Input 6 is the positive endstop. In G-code
 they are addressed as `I4` and `I5`. They may be read or monitored, but attempts
-to assign them an input function keep the function at `0` and the active level at
-`1`.
-
-```
-M329 P<i> V<0|1>          set output i
-M329 P<i> F<f> [V<val>]   assign a function to output i
-M329 P<i>                 read output i's function
-M329 I<i>                 read input i
-M329 I<i> [F<f>] [V<val>] [L<0|1>]   configure input i
-M329 T<i> / M329 S<i>     start / stop auto feedback of input i
-M329                      list every input and output
-```
+to assign them an input function keep the function at `0` and value at `0`.
 
 Input functions (`F`):
 
 | Code | Function |
 | --- | --- |
-| `0` | none |
+| `0` | normal digital input; no automatic action, read with `M331 V<i>` |
 | `1` | move by `V` mm, relative |
 | `2` | stop, with deceleration (also aborts homing) |
 | `3` | start homing |
 | `4` | emergency stop — works in any state, latches fault `5` |
+| `5` | hold to jog at signed speed `V` mm/s; release to decelerate and stop |
 
 Output functions (`F`):
 
 | Code | Function |
 | --- | --- |
-| `0` | none — free for `M329 P<i> V<0\|1>` |
+| `0` | none — free for `M330 P<i> V<0\|1>` |
 | `1` | ON while resting at the target of a completed move |
 | `2` | ON once homing has completed |
 | `3` | position compare: ON while the live position is at or past `V` mm — switches **during** the move, so it can trigger a camera or a robot |
 | `4` | ON while a fault is latched |
 
-`L` is the level that counts as pressed. Inputs 0..3 are conditioned by the V2
-board and default to active-high (`L1`); their action level can be changed. Inputs
-4 and 5 are PB7 and PB6 on the old quadrature encoder channels. They are also
-conditioned by the board, reserved for the negative/home and positive endstops,
-and fixed active-high.
+All six inputs are active-high. There is no configurable active-level parameter;
+an assigned function runs when its input becomes HIGH. Inputs 4 and 5 are PB7 and
+PB6 on the old quadrature encoder channels. They are reserved for the
+negative/home and positive endstops.
 
 Motion started from an input never writes to the command ports. A jog button that
 gets refused simply does nothing, so wire output function `2` or `4` to a lamp if
 the operator needs to see why.
 
 Input function `1` is also available before homing and does not set the homed flag.
+
+---
+
+## M330 - Set Output Pin
+
+Sets a normal output assigned `F0`:
+
+```
+M330 P0 V1    ;set Output 1 (index 0) HIGH
+M330 P0 V0    ;set Output 1 (index 0) LOW
+```
+
+If the output is assigned an automatic function with `M333`, the command is
+refused with `Unknown:Output has function!`. Output indices are `0..3`.
+
+---
+
+## M331 - Read Input Pin
+
+An input assigned `F0` is a normal digital input: it performs no automatic motion
+or stop action and can be read with `M331`.
+
+```
+M331 V0    ;read Input 1 (index 0)
+```
+
+The reply contains the raw electrical state:
+
+```
+I0 V1
+```
+
+Input change feedback uses the same command:
+
+```
+M331 T0    ;start feedback for input 0
+M331 S0    ;stop feedback for input 0
+```
+
+After `M331 T0`, a raw state transition produces `I0 V0` or `I0 V1`. Feedback is
+sampled every 2 ms, is not debounced, and is not persisted across reset. Inputs
+4 and 5 may also be read or monitored even though they are reserved as endstops.
+
+## M332 - Configure Input Pin
+
+Configures one input, reads one input configuration, or lists all input
+configurations:
+
+```
+M332 I0 F0                 ;normal input
+M332 I1 F1 V25             ;move +25 mm when input becomes HIGH
+M332 I2 F5 V-20            ;hold HIGH to jog at -20 mm/s
+M332 I0                    ;read input 0 configuration
+M332                       ;list all input configurations
+```
+
+`F` and `V` are optional when updating; an omitted field keeps its current value.
+Readback format is `I<idx> F<func> V<value>`. Functions `F0`–`F5` have the meanings
+listed under Digital IO Functions.
+
+Inputs 4 and 5 are dedicated active-high endstops. Configuration attempts leave
+them fixed at `F0 V0`.
+
+---
+
+## M333 - Configure Output Pin
+
+Assigns an automatic output function, reads one output configuration, or lists
+all output configurations:
+
+```
+M333 P0 F0                 ;return output 0 to normal/manual mode
+M333 P1 F1                 ;ON when a position target is reached
+M333 P2 F3 V100            ;ON while live position is at least 100 mm
+M333 P0                    ;read output 0 configuration
+M333                       ;list all output configurations
+```
+
+`V` is optional when assigning `F`; if omitted, its previous value is retained.
+Readback format is `O<idx> F<func> V<value>`. Functions `F0`–`F4` have the
+meanings listed under Digital IO Functions. Use `M330` to drive an output after
+assigning `F0`.
 
 ---
 
@@ -334,8 +407,8 @@ Input function `1` is also available before homing and does not set the homed fl
 
 ```
 M328 R1000 L5                   ;1000 pulse/rev motor, 5 mm lead screw
-M324 500                        ;500 mm/s2
-M321 100                        ;100 mm/s, the ceiling at 200 pulse/mm
+M324 A500                       ;500 mm/s2
+M321 V100                       ;100 mm/s, the ceiling at 200 pulse/mm
 M325 R0                         ;normal direction polarity; use R1 if reversed
 M320                            ;home, wait for Ok
 M322 150                        ;move to 150 mm, wait for Ok

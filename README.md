@@ -9,15 +9,18 @@ The command reference is in [`docs/gcode_slider_x.md`](docs/gcode_slider_x.md).
 
 ## The command set
 
-Ten commands drive the whole slider:
+The motion interface uses `M320`–`M328`. Digital IO uses the dedicated commands
+`M330`–`M333`:
 
 | | |
 | --- | --- |
 | `M320` homing | `M325` motor direction |
-| `M321` moving speed | `M326` status |
+| `M321 V` moving speed | `M326` status |
 | `M322` position (absolute or relative) | `M327` stop, e-stop, clear fault |
 | `M323` motor enable | `M328` mechanics (motor pulses/rev, screw lead) |
-| `M324` acceleration | `M329` digital IO |
+| `M324 A` acceleration | |
+| `M330` set output | `M331` read input / feedback |
+| `M332` configure input | `M333` configure output |
 
 Plus the shared DeltaX network commands `M389`–`M399` and the identity strings
 (`IsSliderX`, `Address`, `FirmwareVersion`, `Reset`).
@@ -68,8 +71,8 @@ git rm src/conveyor.cpp src/conveyor.h src/encoder.cpp src/encoder.h \
 Gone with them: the quadrature encoder module and `M316`–`M319`; the operating-mode
 system and `M310` (position moves and IO functions are always available now); the
 free-running velocity mode and `M311`; the duplicate `M312`/`M313`; raw motor-pin
-control `M314`; the calibration command `M315`, whose parts moved into `M324`,
-`M327` and `M328`; and the IO commands `M330`–`M333`, folded into `M329`.
+control `M314`; and the calibration command `M315`, whose parts moved into
+`M324`, `M327` and `M328`. Digital IO uses the dedicated `M330`–`M333` range.
 
 PB7 and PB6, the old encoder header, are now reserved for the negative/home and
 positive NPN endstops (digital inputs 5 and 6).
@@ -100,7 +103,7 @@ negative/home endstop. Input 6 (PB6) is the positive endstop. Both arrive at the
 MCU active HIGH through the V2 board's isolated input circuit. Homing always moves
 toward the Input 5 endstop, backs off 5 mm and re-approaches it at 5 mm/s. Outside
 homing, both endstops are direction-aware so the axis may move away from a
-triggered endstop. The two inputs are reserved and cannot be assigned an `M329`
+triggered endstop. The two inputs are reserved and cannot be assigned an `M332`
 function.
 
 The endstop assignments and homing values are compile-time settings; `M325` only
@@ -116,12 +119,12 @@ For typical three-wire NPN endstops on the old encoder connector:
   conditioning).
 
 Select `VCC_ENCODER` to match the endstop supply supported by the board. Verify the
-inputs with `M329 I4` and `M329 I5` before connecting the motor: each must read
+inputs with `M331 V4` and `M331 V5` before connecting the motor: each must read
 `V0` when clear and `V1` when its endstop is active.
 
 **Input levels.** All six inputs are conditioned by the V2 board and read
-active-high. Inputs 1..4 can still have their action level changed with `M329 L`;
-the two dedicated endstops remain fixed active-high.
+active-high. There is no software active-level setting: an input function is
+triggered when its pin becomes HIGH.
 
 ## EEPROM
 
@@ -134,7 +137,8 @@ Settings survive a firmware upgrade except where noted:
   truncated the integer part to 8 bits, so any value of 256 or more was silently
   corrupted. Set it again after the upgrade.
 * **Input functions** moved to 114 and grew to six entries; re-assign them with
-  `M329`. Input levels live at 144..149.
+  `M332`. Addresses 144..149 formerly held configurable input levels
+  and are no longer used.
 
 Network settings and motor direction keep their existing addresses. Homing values
 and end-limit assignments are fixed in firmware and are not stored in EEPROM.

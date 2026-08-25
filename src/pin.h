@@ -26,8 +26,8 @@
 #define MOTOR_EN_PIN PB5
 
 // Stepper driver enable pin polarity (the driver is enabled at power up)
-#define MOTOR_ENABLE_LEVEL LOW
-#define MOTOR_DISABLE_LEVEL HIGH
+#define MOTOR_ENABLE_LEVEL HIGH
+#define MOTOR_DISABLE_LEVEL LOW
 
 #define ETH_RESET_PIN PA3
 
@@ -66,7 +66,7 @@
 
 #define INPUT_FUNCTION_ADDRESS 114 // 114..119 (function code of 6 inputs)
 #define INPUT_VALUE_ADDRESS 120    // 120..143 (value of 6 inputs, 4 bytes each)
-#define INPUT_LEVEL_ADDRESS 144 // 144..149 (active level of the 6 inputs)
+// 144..149 held configurable input active levels; all inputs are active-high now.
 // 150..175 held the stored-position table, which was removed. Free.
 
 // ---- mechanics: motor and lead screw ----

@@ -76,7 +76,6 @@ void Slider::save_data()
     {
         EEPROM.update(INPUT_FUNCTION_ADDRESS + i, input_function[i]);
         putRawFloat(INPUT_VALUE_ADDRESS + i * 4, input_value[i]);
-        EEPROM.update(INPUT_LEVEL_ADDRESS + i, input_active_level[i]);
     }
 
     for (uint8_t i = 0; i < OUTPUT_COUNT; i++)
@@ -105,7 +104,7 @@ void Slider::load_data()
     for (uint8_t i = 0; i < INPUT_COUNT; i++)
     {
         input_function[i] = EEPROM.read(INPUT_FUNCTION_ADDRESS + i);
-        if (input_function[i] > INPUT_FUNC_ESTOP)
+        if (input_function[i] > INPUT_FUNC_JOG_HOLD)
         {
             input_function[i] = INPUT_FUNC_NONE;
         }
@@ -114,18 +113,12 @@ void Slider::load_data()
         {
             input_value[i] = 0;
         }
-        input_active_level[i] = EEPROM.read(INPUT_LEVEL_ADDRESS + i);
-        if (input_active_level[i] > 1)
-        {
-            input_active_level[i] = DEFAULT_INPUT_ACTIVE_LEVEL(i);
-        }
         if (i == NEGATIVE_LIMIT_INPUT || i == POSITIVE_LIMIT_INPUT)
         {
             // The two NPN sensors are fixed active-high and cannot also launch
-            // an M329 action, regardless of values left by an older firmware.
+            // a configurable input action, regardless of older EEPROM values.
             input_function[i] = INPUT_FUNC_NONE;
             input_value[i] = 0;
-            input_active_level[i] = DEDICATED_LIMIT_ACTIVE_LEVEL;
         }
     }
 
@@ -400,6 +393,8 @@ void Slider::init()
     has_pending_move = false;
     pending_position = 0;
     pending_from_gcode = false;
+    is_jogging = false;
+    jog_input = 0xFF;
 
     fault_code = FAULT_NONE;
     is_need_send_fault = false;
@@ -482,9 +477,9 @@ void Slider::__timer_handle()
             __execute_vel();
         }
     }
-    else if (is_stopping)
+    else if (is_stopping || is_jogging)
     {
-        // a controlled stop owns the axis until the ramp reaches zero
+        // controlled stops and hold-to-jog both use the velocity ramp
         __execute_vel();
     }
     else
@@ -568,6 +563,7 @@ void Slider::__move_raw(float _speed)
 void Slider::__stop_raw()
 {
     __pause_step_timer();
+    __sync_position();
     current_speed = 0;
     desire_speed = 0;
     pulse_counter = 0;
@@ -622,7 +618,7 @@ MOVE_RESULT Slider::home(bool _from_gcode)
 
     // never interrupt a running move or another homing run: their own reply is
     // still owed to the host
-    if (homing_state != HOMING_NONE || is_stopping || current_speed != 0 ||
+    if (homing_state != HOMING_NONE || is_stopping || is_jogging || current_speed != 0 ||
         pulse_counter != 0)
     {
         return MOVE_ERR_BUSY;
@@ -861,8 +857,12 @@ void Slider::disableStepper()
     abortHoming();
     __stop_raw();
     is_stopping = false;
+    is_jogging = false;
+    jog_input = 0xFF;
     __finish_reply(false, "Unknown:Move stopped!");
     __cancel_pending_move("Unknown:Move stopped!");
+    desire_step_position = current_step_position;
+    commanded_position = __steps_to_position(current_step_position);
 
     digitalWrite(MOTOR_EN_PIN, MOTOR_DISABLE_LEVEL);
     is_stepper_enable = false;
@@ -920,7 +920,8 @@ float Slider::getAccel()
 
 bool Slider::isMoving()
 {
-    return (current_speed != 0) || (homing_state != HOMING_NONE);
+    return (current_speed != 0) || is_stopping || is_jogging ||
+           (homing_state != HOMING_NONE);
 }
 
 // A stored move speed can become unreachable when the scale or the step period
@@ -941,7 +942,7 @@ void Slider::__clamp_move_speed()
 MOVE_RESULT Slider::setMechanics(float _steps_rev, float _lead)
 {
     // changing the scale under a running move would corrupt the pulse budget
-    if (homing_state != HOMING_NONE || is_stopping || current_speed != 0 ||
+    if (homing_state != HOMING_NONE || is_stopping || is_jogging || current_speed != 0 ||
         pulse_counter != 0)
     {
         return MOVE_ERR_BUSY;
@@ -963,6 +964,9 @@ MOVE_RESULT Slider::setMechanics(float _steps_rev, float _lead)
 
     // the mm scale moved, so the stored zero no longer means what it did
     is_homed = false;
+    __sync_position();
+    desire_step_position = current_step_position;
+    commanded_position = __steps_to_position(current_step_position);
 
     __clamp_move_speed();
     save_mechanics_data();
@@ -1001,6 +1005,8 @@ bool Slider::__start_move(double _pos, bool _from_gcode)
 
     enableStepper();
     __sync_position();
+    is_jogging = false;
+    jog_input = 0xFF;
     reply_pending = _from_gcode;
 
     commanded_position = _pos;
@@ -1052,7 +1058,7 @@ MOVE_RESULT Slider::__set_position(double _pos, bool _from_gcode, bool _require_
     }
 
 
-    if (homing_state != HOMING_NONE)
+    if (homing_state != HOMING_NONE || is_jogging)
     {
         return MOVE_ERR_BUSY;
     }
@@ -1089,6 +1095,11 @@ MOVE_RESULT Slider::__set_position(double _pos, bool _from_gcode, bool _require_
         commanded_position = _pos;
         pending_from_gcode = _from_gcode;
         has_pending_move = true;
+
+        // A position command takes ownership from a physical jog input. Its
+        // later release must not stop the newly queued position move.
+        is_jogging = false;
+        jog_input = 0xFF;
 
         if (!is_stopping)
         {
@@ -1201,6 +1212,8 @@ void Slider::stopSmooth()
     // An explicit stop cancels a queued retarget - otherwise the axis would pause
     // and then drive off to the queued target on its own.
     __cancel_pending_move("Unknown:Move stopped!");
+    is_jogging = false;
+    jog_input = 0xFF;
 
     // Answer the interrupted move now: it lands before the reply of whatever
     // command asked for the stop, which a sequential host needs.
@@ -1256,6 +1269,8 @@ void Slider::stopEmergency(FAULT_CODE _fault)
     __sync_position();
 
     is_stopping = false;
+    is_jogging = false;
+    jog_input = 0xFF;
     homing_state = HOMING_NONE;
     home_move_done = false;
 
@@ -1346,31 +1361,29 @@ void Slider::setAddress(uint16_t _address)
     save_data();
 }
 
-void Slider::setInputFunction(uint8_t index, uint8_t func, float value, uint8_t level)
+void Slider::setInputFunction(uint8_t index, uint8_t func, float value)
 {
     if (index >= INPUT_COUNT)
     {
         return;
+    }
+    if (is_jogging && jog_input == index)
+    {
+        __stop_jog(index);
     }
     if (index == NEGATIVE_LIMIT_INPUT || index == POSITIVE_LIMIT_INPUT)
     {
         // Keep the physical limit pins from also launching an IO action.
         input_function[index] = INPUT_FUNC_NONE;
         input_value[index] = 0;
-        input_active_level[index] = DEDICATED_LIMIT_ACTIVE_LEVEL;
         __seed_input_state(index);
         save_data();
         return;
     }
-    if (func > INPUT_FUNC_ESTOP)
+    if (func > INPUT_FUNC_JOG_HOLD)
     {
         func = INPUT_FUNC_NONE;
     }
-    if (level <= 1)
-    {
-        input_active_level[index] = level;
-    }
-
     input_function[index] = func;
     input_value[index] = value;
 
@@ -1460,9 +1473,72 @@ void Slider::__input_action(uint8_t index)
     case INPUT_FUNC_HOME:
         home(false);
         break;
+    case INPUT_FUNC_JOG_HOLD:
+        __start_jog(index, input_value[index]);
+        break;
     default:
         break;
     }
+}
+
+// Start a free-running jog owned by one physical input. The sign selects the
+// direction; the magnitude is the target speed in mm/s. Jogging is available
+// before homing, but the two hard limits and latched faults still apply.
+MOVE_RESULT Slider::__start_jog(uint8_t index, float speed)
+{
+    if (fault_code != FAULT_NONE)
+    {
+        return MOVE_ERR_FAULT;
+    }
+    if (index >= INPUT_COUNT || !isfinite(speed) || speed == 0)
+    {
+        return MOVE_ERR_RANGE;
+    }
+    if (homing_state != HOMING_NONE || is_stopping || is_jogging ||
+        current_speed != 0 || pulse_counter != 0)
+    {
+        return MOVE_ERR_BUSY;
+    }
+
+    bool negative = speed < 0;
+    float jog_speed = fabs(speed);
+    if (jog_speed < min_speed)
+    {
+        jog_speed = min_speed;
+    }
+    float max_speed = maxSpeed();
+    if (max_speed > 0 && jog_speed > max_speed)
+    {
+        jog_speed = max_speed;
+    }
+
+    enableStepper();
+    __sync_position();
+    __cancel_pending_move("Unknown:Move stopped!");
+
+    pulse_counter = 0;
+    total_pulse = 0;
+    pulse_for_accel = 0;
+    step_delta = 0;
+    is_moving_pos = false;
+    at_position = false;
+    is_jogging = true;
+    jog_input = index;
+
+    __move_raw(negative ? -jog_speed : jog_speed);
+    return MOVE_OK;
+}
+
+void Slider::__stop_jog(uint8_t index)
+{
+    if (!is_jogging || jog_input != index)
+    {
+        return;
+    }
+
+    is_jogging = false;
+    jog_input = 0xFF;
+    __begin_stop_ramp();
 }
 
 // An input only starts being sampled once it has a function, so its debounce
@@ -1479,7 +1555,7 @@ void Slider::__seed_input_state(uint8_t index)
     bool raw = false;
     io_control.getInput(index, raw);
 
-    bool active = (raw == (bool)input_active_level[index]);
+    bool active = raw;
 
     input_raw_last[index] = active;
     input_pressed[index] = active;
@@ -1499,7 +1575,7 @@ void Slider::__execute_input()
         bool raw = false;
         io_control.getInput(i, raw);
 
-        bool active = (raw == (bool)input_active_level[i]);
+        bool active = raw;
 
         if (active != input_raw_last[i])
         {
@@ -1511,10 +1587,16 @@ void Slider::__execute_input()
             input_pressed[i] = active;
         }
 
-        // act on the press edge only
+        // Most functions act on the press edge. Hold-to-jog additionally owns
+        // the release edge so it can ramp down without stopping another motion.
         if (input_pressed[i] && !input_pressed_last[i])
         {
             __input_action(i);
+        }
+        else if (!input_pressed[i] && input_pressed_last[i] &&
+                 input_function[i] == INPUT_FUNC_JOG_HOLD)
+        {
+            __stop_jog(i);
         }
 
         input_pressed_last[i] = input_pressed[i];

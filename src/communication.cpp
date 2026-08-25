@@ -1,5 +1,60 @@
 #include "communication.h"
 #include "io_control.h"
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+
+static bool parse_float_strict(const String &_text, float &_value)
+{
+    if (_text.length() == 0)
+    {
+        return false;
+    }
+
+    const char *_start = _text.c_str();
+    char *_end = NULL;
+    errno = 0;
+    float _parsed = strtof(_start, &_end);
+    if (_end == _start || *_end != '\0' || errno == ERANGE || !isfinite(_parsed))
+    {
+        return false;
+    }
+
+    _value = _parsed;
+    return true;
+}
+
+static bool parse_long_strict(const String &_text, long &_value)
+{
+    if (_text.length() == 0)
+    {
+        return false;
+    }
+
+    const char *_start = _text.c_str();
+    char *_end = NULL;
+    errno = 0;
+    long _parsed = strtol(_start, &_end, 10);
+    if (_end == _start || *_end != '\0' || errno == ERANGE)
+    {
+        return false;
+    }
+
+    _value = _parsed;
+    return true;
+}
+
+static bool parse_byte_strict(const String &_text, uint8_t &_value)
+{
+    long _parsed = 0;
+    if (!parse_long_strict(_text, _parsed) || _parsed < 0 || _parsed > 255)
+    {
+        return false;
+    }
+
+    _value = (uint8_t)_parsed;
+    return true;
+}
 
 // why the slider refused a motion request, in a form the host can read
 static const char *move_error(MOVE_RESULT _result)
@@ -43,7 +98,9 @@ void communication::enable_rj45()
 
     if (ethernet_ip == IPAddress(0, 0, 0, 0))
     {
-        Ethernet.begin(ethernet_mac);
+        // Keep a missing DHCP server from blocking the safety loop for a minute.
+        // Runtime reconfiguration is also refused while the axis is moving.
+        Ethernet.begin(ethernet_mac, 3000, 1000);
     }
     else
     {
@@ -413,9 +470,17 @@ void communication::execute()
         String valueString = gcode.substring(index_gcode + 1);
         if (keyString == "Address")
         {
-            uint16_t _address = valueString.toInt();
-            slider.setAddress(_address);
-            send_done();
+            long _address = 0;
+            if (!parse_long_strict(valueString, _address) ||
+                _address < 0 || _address > UINT16_MAX)
+            {
+                response("Unknown:Bad parameter!");
+            }
+            else
+            {
+                slider.setAddress((uint16_t)_address);
+                send_done();
+            }
         }
         else
         {
@@ -520,6 +585,7 @@ void communication::execute()
     String splitWord = "";
     gcode += " ";
     byte index_value = 0;
+    bool too_many_values = false;
 
     String keyValue = gcode.substring(0, 4);
     String _values[MAX_GCODE_VALUES];
@@ -536,6 +602,10 @@ void communication::execute()
                 _values[index_value] = splitWord;
                 index_value++;
             }
+            else
+            {
+                too_many_values = true;
+            }
 
             splitWord = "";
             continue;
@@ -550,24 +620,48 @@ void communication::execute()
     String &_value5 = _values[4];
     String &_value6 = _values[5];
 
+    if (too_many_values)
+    {
+        response("Unknown:Bad parameter!");
+        gcode = "";
+        return;
+    }
+
     // ---------------------------------------------------------- Slider X ----
     if (keyValue == "M320")
     {
         // homing: seek the home switch and zero the position.
         // "Ok" is sent by the slider once the sequence finishes.
-        MOVE_RESULT _result = slider.home();
-        if (_result != MOVE_OK)
+        if (index_value != 0)
         {
-            response(move_error(_result));
+            response("Unknown:Bad parameter!");
+        }
+        else
+        {
+            MOVE_RESULT _result = slider.home();
+            if (_result != MOVE_OK)
+            {
+                response(move_error(_result));
+            }
         }
     }
     else if (keyValue == "M321")
     {
-        // set / read the moving speed used by M322 (mm/s)
+        // set / read the moving speed used by M322: M321 V<mm/s>
         if (index_value > 0)
         {
-            slider.setMoveSpeed(_value1.toFloat());
-            send_done();
+            float _speed = 0;
+            if (index_value != 1 || _value1.length() < 2 ||
+                (_value1[0] != 'V' && _value1[0] != 'v') ||
+                !parse_float_strict(_value1.substring(1), _speed))
+            {
+                response("Unknown:Bad parameter!");
+            }
+            else
+            {
+                slider.setMoveSpeed(_speed);
+                send_done();
+            }
         }
         else
         {
@@ -582,18 +676,35 @@ void communication::execute()
         if (index_value > 0 && (_value1[0] == 'R' || _value1[0] == 'r'))
         {
             // relative move: M322 R<distance>
-            MOVE_RESULT _result = slider.movePositionRelative(_value1.substring(1).toFloat());
-            if (_result != MOVE_OK)
+            float _distance = 0;
+            if (index_value != 1 ||
+                !parse_float_strict(_value1.substring(1), _distance))
             {
-                response(move_error(_result));
+                response("Unknown:Bad parameter!");
+            }
+            else
+            {
+                MOVE_RESULT _result = slider.movePositionRelative(_distance);
+                if (_result != MOVE_OK)
+                {
+                    response(move_error(_result));
+                }
             }
         }
         else if (index_value > 0)
         {
-            MOVE_RESULT _result = slider.setPosition(_value1.toFloat());
-            if (_result != MOVE_OK)
+            float _position = 0;
+            if (index_value != 1 || !parse_float_strict(_value1, _position))
             {
-                response(move_error(_result));
+                response("Unknown:Bad parameter!");
+            }
+            else
+            {
+                MOVE_RESULT _result = slider.setPosition(_position);
+                if (_result != MOVE_OK)
+                {
+                    response(move_error(_result));
+                }
             }
         }
         else
@@ -606,30 +717,54 @@ void communication::execute()
     else if (keyValue == "M323")
     {
         // release the stepper (M323) or drive the enable pin explicitly (M323 E0/E1)
-        if (index_value > 0 && _value1[0] == 'E')
+        if (index_value == 0)
         {
-            if (_value1.substring(1).toInt())
+            slider.disableStepper();
+            send_done();
+        }
+        else if (index_value == 1 && (_value1[0] == 'E' || _value1[0] == 'e'))
+        {
+            long _enable = 0;
+            if (!parse_long_strict(_value1.substring(1), _enable) ||
+                (_enable != 0 && _enable != 1))
             {
-                slider.enableStepper();
+                response("Unknown:Bad parameter!");
             }
             else
             {
-                slider.disableStepper();
+                if (_enable == 1)
+                {
+                    slider.enableStepper();
+                }
+                else
+                {
+                    slider.disableStepper();
+                }
+                send_done();
             }
         }
         else
         {
-            slider.disableStepper();
+            response("Unknown:Bad parameter!");
         }
-        send_done();
     }
     else if (keyValue == "M324")
     {
-        // set / read the acceleration (mm/s^2)
+        // set / read the acceleration: M324 A<mm/s^2>
         if (index_value > 0)
         {
-            slider.setAccel(_value1.toFloat());
-            send_done();
+            float _accel = 0;
+            if (index_value != 1 || _value1.length() < 2 ||
+                (_value1[0] != 'A' && _value1[0] != 'a') ||
+                !parse_float_strict(_value1.substring(1), _accel))
+            {
+                response("Unknown:Bad parameter!");
+            }
+            else
+            {
+                slider.setAccel(_accel);
+                send_done();
+            }
         }
         else
         {
@@ -642,24 +777,22 @@ void communication::execute()
     {
         // Negative-end homing on PB7 is fixed and only starts on M320. R handles
         // motor wiring direction.
-        uint8_t _reverse = 255;
+        long _reverse = -1;
         bool _valid = true;
 
         String *_vals = _values;
         for (uint8_t i = 0; i < index_value; i++)
         {
-            if (_vals[i].length() < 2)
+            if (_vals[i].length() < 2 ||
+                (_vals[i][0] != 'R' && _vals[i][0] != 'r'))
             {
-                continue;
+                _valid = false;
+                break;
             }
 
-            String _rest = _vals[i].substring(1);
-            switch (_vals[i][0])
+            if (!parse_long_strict(_vals[i].substring(1), _reverse) ||
+                (_reverse != 0 && _reverse != 1))
             {
-            case 'R':
-                _reverse = _rest.toInt();
-                break;
-            default:
                 _valid = false;
                 break;
             }
@@ -667,13 +800,13 @@ void communication::execute()
 
         if (index_value > 0)
         {
-            if (!_valid || (_reverse != 255 && _reverse > 1))
+            if (!_valid || index_value != 1 || _reverse < 0)
             {
                 response("Unknown:Bad M325 parameter!");
             }
             else
             {
-                slider.setHomeConfig(_reverse);
+                slider.setHomeConfig((uint8_t)_reverse);
                 send_done();
             }
         }
@@ -685,26 +818,39 @@ void communication::execute()
     else if (keyValue == "M326")
     {
         // status
-        send_slider_status();
+        if (index_value == 0)
+        {
+            send_slider_status();
+        }
+        else
+        {
+            response("Unknown:Bad parameter!");
+        }
     }
     else if (keyValue == "M327")
     {
         // M327   -> ramp down and hold the position
         // M327 E -> emergency stop, cuts the pulses at once and latches a fault
         // M327 C -> acknowledge a latched fault so motion is accepted again
-        if (index_value > 0 && _value1[0] == 'E')
+        if (index_value == 0)
+        {
+            slider.stopSmooth();
+            send_done();
+        }
+        else if (index_value == 1 && _value1.equalsIgnoreCase("E"))
         {
             slider.stopEmergency(FAULT_ESTOP);
+            send_done();
         }
-        else if (index_value > 0 && _value1[0] == 'C')
+        else if (index_value == 1 && _value1.equalsIgnoreCase("C"))
         {
             slider.clearFault();
+            send_done();
         }
         else
         {
-            slider.stopSmooth();
+            response("Unknown:Bad parameter!");
         }
-        send_done();
     }
     else if (keyValue == "M328")
     {
@@ -712,34 +858,64 @@ void communication::execute()
         // pulse_per_mm is recomputed as steps_per_rev / screw_lead.
         float _steps_rev = 0;
         float _lead = 0;
+        bool _valid = true;
+        bool _has_steps = false;
+        bool _has_lead = false;
 
         for (uint8_t i = 0; i < index_value; i++)
         {
             if (_values[i].length() < 2)
             {
-                continue;
+                _valid = false;
+                break;
             }
 
-            if (_values[i][0] == 'R')
+            if (_values[i][0] == 'R' || _values[i][0] == 'r')
             {
-                _steps_rev = _values[i].substring(1).toFloat();
+                if (_has_steps ||
+                    !parse_float_strict(_values[i].substring(1), _steps_rev) ||
+                    _steps_rev <= 0)
+                {
+                    _valid = false;
+                    break;
+                }
+                _has_steps = true;
             }
-            else if (_values[i][0] == 'L')
+            else if (_values[i][0] == 'L' || _values[i][0] == 'l')
             {
-                _lead = _values[i].substring(1).toFloat();
+                if (_has_lead ||
+                    !parse_float_strict(_values[i].substring(1), _lead) ||
+                    _lead <= 0)
+                {
+                    _valid = false;
+                    break;
+                }
+                _has_lead = true;
+            }
+            else
+            {
+                _valid = false;
+                break;
             }
         }
 
         if (index_value > 0)
         {
-            MOVE_RESULT _result = slider.setMechanics(_steps_rev, _lead);
-            if (_result == MOVE_OK)
+            if (!_valid || (!_has_steps && !_has_lead))
             {
-                send_done();
+                response("Unknown:Bad parameter!");
             }
             else
             {
-                response(move_error(_result));
+                MOVE_RESULT _result = slider.setMechanics(_steps_rev, _lead);
+                if (_result == MOVE_OK)
+                {
+                    send_done();
+                }
+                else
+                {
+                    response(move_error(_result));
+                }
             }
         }
         else
@@ -747,164 +923,308 @@ void communication::execute()
             send_mechanics_infor();
         }
     }
-    else if (keyValue == "M329")
+    else if (keyValue == "M330")
     {
-        // Digital IO, all of it:
-        //   M329 P<i> V<0|1>        set output i
-        //   M329 P<i> F<f> V<val>   assign a function to output i
-        //   M329 I<i>               read input i
-        //   M329 I<i> F<f> V<val>   assign a function to input i
-        //   M329 T<i> / M329 S<i>   start / stop auto feedback of input i
-        //   M329                    list every input and output
-        int _in = -1;
-        int _out = -1;
-        int _func = -1;
-        int _feedback_on = -1;
-        int _feedback_off = -1;
-        int _level = -1;
-        float _val = 0;
-        bool _has_val = false;
+        // Set a normal output pin: M330 P<i> V<0|1>.
+        long _out = -1;
+        long _value = -1;
+        bool _has_out = false;
+        bool _has_value = false;
+        bool _valid = (index_value == 2);
 
-        for (uint8_t i = 0; i < index_value; i++)
+        for (uint8_t i = 0; _valid && i < index_value; i++)
         {
             if (_values[i].length() < 2)
             {
-                continue;
+                _valid = false;
+                break;
             }
 
+            char _key = _values[i][0];
+            if (_key >= 'a' && _key <= 'z')
+            {
+                _key -= ('a' - 'A');
+            }
+
+            long _parsed = -1;
+            if (!parse_long_strict(_values[i].substring(1), _parsed))
+            {
+                _valid = false;
+            }
+            else if (_key == 'P' && !_has_out)
+            {
+                _out = _parsed;
+                _has_out = true;
+            }
+            else if (_key == 'V' && !_has_value)
+            {
+                _value = _parsed;
+                _has_value = true;
+            }
+            else
+            {
+                _valid = false;
+            }
+        }
+
+        if (!_valid || !_has_out || !_has_value || _out < 0 ||
+            (_value != 0 && _value != 1))
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (_out >= OUTPUT_COUNT)
+        {
+            response("Unknown:Bad output index!");
+        }
+        else if (slider.output_function[_out] != OUTPUT_FUNC_NONE)
+        {
+            response("Unknown:Output has function!");
+        }
+        else
+        {
+            io_control.setOutput((uint8_t)_out, (uint8_t)_value);
+            send_done();
+        }
+    }
+
+    else if (keyValue == "M331")
+    {
+        // Normal digital input access, compatible with the original IO protocol:
+        //   M331 V<i>  read the raw state of input i
+        //   M331 T<i>  start change feedback for input i
+        //   M331 S<i>  stop change feedback for input i
+        if (index_value != 1 || _value1.length() < 2)
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else
+        {
+            char _operation = _value1[0];
+            if (_operation >= 'a' && _operation <= 'z')
+            {
+                _operation -= ('a' - 'A');
+            }
+
+            long _index = -1;
+            if (!parse_long_strict(_value1.substring(1), _index) ||
+                _index < 0 || _index >= INPUT_COUNT)
+            {
+                response("Unknown:Bad input index!");
+            }
+            else if (_operation == 'V')
+            {
+                bool _state = false;
+                io_control.getInput((uint8_t)_index, _state);
+
+                String fb_string = "I";
+                fb_string += String(_index);
+                fb_string += " V";
+                fb_string += String(_state);
+                response(fb_string);
+            }
+            else if (_operation == 'T')
+            {
+                io_control.setInputAutoFeedback((uint8_t)_index);
+                send_done();
+            }
+            else if (_operation == 'S')
+            {
+                io_control.setStopInputAutoFeedback((uint8_t)_index);
+                send_done();
+            }
+            else
+            {
+                response("Unknown:Bad parameter!");
+            }
+        }
+    }
+
+    else if (keyValue == "M332")
+    {
+        // Configure or inspect inputs:
+        //   M332 I<i> [F<f>] [V<value>]
+        //   M332 I<i>  reads one configuration; M332 lists all configurations.
+        long _in = -1;
+        long _func = -1;
+        float _value = 0;
+        bool _has_value = false;
+        bool _valid = true;
+
+        for (uint8_t i = 0; _valid && i < index_value; i++)
+        {
+            if (_values[i].length() < 2)
+            {
+                _valid = false;
+                break;
+            }
+
+            char _key = _values[i][0];
+            if (_key >= 'a' && _key <= 'z')
+            {
+                _key -= ('a' - 'A');
+            }
             String _rest = _values[i].substring(1);
-            switch (_values[i][0])
+            long _parsed = -1;
+
+            switch (_key)
             {
             case 'I':
-                _in = _rest.toInt();
-                break;
-            case 'P':
-                _out = _rest.toInt();
+                if (_in >= 0 || !parse_long_strict(_rest, _parsed) || _parsed < 0)
+                    _valid = false;
+                else
+                    _in = _parsed;
                 break;
             case 'F':
-                _func = _rest.toInt();
+                if (_func >= 0 || !parse_long_strict(_rest, _parsed) || _parsed < 0)
+                    _valid = false;
+                else
+                    _func = _parsed;
                 break;
             case 'V':
-                _val = _rest.toFloat();
-                _has_val = true;
-                break;
-            case 'T':
-                _feedback_on = _rest.toInt();
-                break;
-            case 'S':
-                _feedback_off = _rest.toInt();
-                break;
-            case 'L':
-                _level = _rest.toInt();
+                if (_has_value || !parse_float_strict(_rest, _value))
+                    _valid = false;
+                else
+                    _has_value = true;
                 break;
             default:
+                _valid = false;
                 break;
             }
         }
 
-        if (_feedback_on >= 0)
+        if (!_valid || (index_value > 0 && _in < 0))
         {
-            if (io_control.setInputAutoFeedback(_feedback_on))
-            {
-                send_done();
-            }
-            else
-            {
-                response("Unknown:Bad input index!");
-            }
+            response("Unknown:Bad parameter!");
         }
-        else if (_feedback_off >= 0)
+        else if (_in >= INPUT_COUNT)
         {
-            if (io_control.setStopInputAutoFeedback(_feedback_off))
-            {
-                send_done();
-            }
-            else
-            {
-                response("Unknown:Bad input index!");
-            }
+            response("Unknown:Bad input index!");
+        }
+        else if (_func > INPUT_FUNC_JOG_HOLD)
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (_in >= 0 && (_func >= 0 || _has_value))
+        {
+            slider.setInputFunction((uint8_t)_in,
+                                    (_func >= 0) ? (uint8_t)_func : slider.input_function[_in],
+                                    _has_value ? _value : slider.input_value[_in]);
+            send_done();
         }
         else if (_in >= 0)
         {
-            if (_in >= INPUT_COUNT)
-            {
-                response("Unknown:Bad input index!");
-            }
-            else if (_func >= 0 || _level >= 0 || _has_val)
-            {
-                slider.setInputFunction(_in,
-                                        (_func >= 0) ? _func : slider.input_function[_in],
-                                        _has_val ? _val : slider.input_value[_in],
-                                        (_level >= 0) ? _level : 255);
-                send_done();
-            }
-            else
-            {
-                bool _state = false;
-                io_control.getInput(_in, _state);
-
-                String fb_string = "I";
-                fb_string += String(_in);
-                fb_string += " V";
-                fb_string += String(_state);
-                fb_string += " F";
-                fb_string += String(slider.input_function[_in]);
-                fb_string += " L";
-                fb_string += String(slider.input_active_level[_in]);
-                response(fb_string);
-            }
-        }
-        else if (_out >= 0)
-        {
-            if (_out >= OUTPUT_COUNT)
-            {
-                response("Unknown:Bad output index!");
-            }
-            else if (_func >= 0)
-            {
-                slider.setOutputFunction(_out, _func, _has_val ? _val : slider.output_value[_out]);
-                send_done();
-            }
-            else if (_has_val)
-            {
-                if (slider.output_function[_out] != OUTPUT_FUNC_NONE)
-                {
-                    response("Unknown:Output has function!");
-                }
-                else
-                {
-                    io_control.setOutput(_out, _val != 0);
-                    send_done();
-                }
-            }
-            else
-            {
-                String fb_string = "O";
-                fb_string += String(_out);
-                fb_string += " F";
-                fb_string += String(slider.output_function[_out]);
-                fb_string += " V";
-                fb_string += String(slider.output_value[_out], 2);
-                response(fb_string);
-            }
+            String fb_string = "I";
+            fb_string += String(_in);
+            fb_string += " F";
+            fb_string += String(slider.input_function[_in]);
+            fb_string += " V";
+            fb_string += String(slider.input_value[_in], 2);
+            response(fb_string);
         }
         else
         {
             String fb_string = "";
             for (uint8_t i = 0; i < INPUT_COUNT; i++)
             {
-                bool _state = false;
-                io_control.getInput(i, _state);
                 fb_string += "I";
                 fb_string += String(i);
-                fb_string += " V";
-                fb_string += String(_state);
                 fb_string += " F";
                 fb_string += String(slider.input_function[i]);
-                fb_string += " L";
-                fb_string += String(slider.input_active_level[i]);
-                fb_string += '\n';
+                fb_string += " V";
+                fb_string += String(slider.input_value[i], 2);
+                if (i < INPUT_COUNT - 1)
+                {
+                    fb_string += '\n';
+                }
             }
+            response(fb_string);
+        }
+    }
+
+    else if (keyValue == "M333")
+    {
+        // Configure or inspect outputs:
+        //   M333 P<i> F<f> [V<value>]
+        //   M333 P<i> reads one configuration; M333 lists all configurations.
+        long _out = -1;
+        long _func = -1;
+        float _value = 0;
+        bool _has_value = false;
+        bool _valid = true;
+
+        for (uint8_t i = 0; _valid && i < index_value; i++)
+        {
+            if (_values[i].length() < 2)
+            {
+                _valid = false;
+                break;
+            }
+
+            char _key = _values[i][0];
+            if (_key >= 'a' && _key <= 'z')
+            {
+                _key -= ('a' - 'A');
+            }
+            String _rest = _values[i].substring(1);
+            long _parsed = -1;
+
+            switch (_key)
+            {
+            case 'P':
+                if (_out >= 0 || !parse_long_strict(_rest, _parsed) || _parsed < 0)
+                    _valid = false;
+                else
+                    _out = _parsed;
+                break;
+            case 'F':
+                if (_func >= 0 || !parse_long_strict(_rest, _parsed) || _parsed < 0)
+                    _valid = false;
+                else
+                    _func = _parsed;
+                break;
+            case 'V':
+                if (_has_value || !parse_float_strict(_rest, _value))
+                    _valid = false;
+                else
+                    _has_value = true;
+                break;
+            default:
+                _valid = false;
+                break;
+            }
+        }
+
+        if (!_valid || (index_value > 0 && _out < 0) || (_has_value && _func < 0))
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (_out >= OUTPUT_COUNT)
+        {
+            response("Unknown:Bad output index!");
+        }
+        else if (_func > OUTPUT_FUNC_FAULT)
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (_out >= 0 && _func >= 0)
+        {
+            slider.setOutputFunction((uint8_t)_out, (uint8_t)_func,
+                                     _has_value ? _value : slider.output_value[_out]);
+            send_done();
+        }
+        else if (_out >= 0)
+        {
+            String fb_string = "O";
+            fb_string += String(_out);
+            fb_string += " F";
+            fb_string += String(slider.output_function[_out]);
+            fb_string += " V";
+            fb_string += String(slider.output_value[_out], 2);
+            response(fb_string);
+        }
+        else
+        {
+            String fb_string = "";
             for (uint8_t i = 0; i < OUTPUT_COUNT; i++)
             {
                 fb_string += "O";
@@ -924,110 +1244,174 @@ void communication::execute()
 
     else if (keyValue == "M389")
     {
-        is_eth_enable = _value1.toInt();
-        if (is_eth_enable)
+        long _enable = 0;
+        if (index_value != 1 || !parse_long_strict(_value1, _enable) ||
+            (_enable != 0 && _enable != 1))
         {
-            init_eth();
+            response("Unknown:Bad parameter!");
         }
-        save_eth();
-        send_done();
+        else if (slider.isMoving())
+        {
+            response("Unknown:Slider busy!");
+        }
+        else
+        {
+            is_eth_enable = (_enable == 1);
+            if (is_eth_enable)
+            {
+                init_eth();
+            }
+            save_eth();
+            send_done();
+        }
     }
     else if (keyValue == "M390")
     {
-        if (index_value > 0)
+        long _port = 0;
+        if (index_value == 1 && parse_long_strict(_value1, _port) &&
+            _port > 0 && _port <= UINT16_MAX)
         {
-            ethernet_port = _value1.toInt();
+            ethernet_port = (uint16_t)_port;
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M391")
     {
-        if (index_value > 3)
+        uint8_t _a, _b, _c, _d;
+        if (index_value == 4 &&
+            parse_byte_strict(_value1, _a) && parse_byte_strict(_value2, _b) &&
+            parse_byte_strict(_value3, _c) && parse_byte_strict(_value4, _d))
         {
-            ethernet_ip = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            ethernet_ip = IPAddress(_a, _b, _c, _d);
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M392")
     {
-        if (index_value > 3)
+        uint8_t _a, _b, _c, _d;
+        if (index_value == 4 &&
+            parse_byte_strict(_value1, _a) && parse_byte_strict(_value2, _b) &&
+            parse_byte_strict(_value3, _c) && parse_byte_strict(_value4, _d))
         {
-            ethernet_dns = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            ethernet_dns = IPAddress(_a, _b, _c, _d);
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M393")
     {
-        if (index_value > 3)
+        uint8_t _a, _b, _c, _d;
+        if (index_value == 4 &&
+            parse_byte_strict(_value1, _a) && parse_byte_strict(_value2, _b) &&
+            parse_byte_strict(_value3, _c) && parse_byte_strict(_value4, _d))
         {
-            ethernet_gateway = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            ethernet_gateway = IPAddress(_a, _b, _c, _d);
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M394")
     {
-        if (index_value > 3)
+        uint8_t _a, _b, _c, _d;
+        if (index_value == 4 &&
+            parse_byte_strict(_value1, _a) && parse_byte_strict(_value2, _b) &&
+            parse_byte_strict(_value3, _c) && parse_byte_strict(_value4, _d))
         {
-            ethernet_subnet = IPAddress(_value1.toInt(), _value2.toInt(), _value3.toInt(), _value4.toInt());
+            ethernet_subnet = IPAddress(_a, _b, _c, _d);
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M395")
     {
-        if (index_value > 5)
+        uint8_t _mac[6];
+        if (index_value == 6 &&
+            parse_byte_strict(_value1, _mac[0]) &&
+            parse_byte_strict(_value2, _mac[1]) &&
+            parse_byte_strict(_value3, _mac[2]) &&
+            parse_byte_strict(_value4, _mac[3]) &&
+            parse_byte_strict(_value5, _mac[4]) &&
+            parse_byte_strict(_value6, _mac[5]))
         {
-            ethernet_mac[0] = _value1.toInt();
-            ethernet_mac[1] = _value2.toInt();
-            ethernet_mac[2] = _value3.toInt();
-            ethernet_mac[3] = _value4.toInt();
-            ethernet_mac[4] = _value5.toInt();
-            ethernet_mac[5] = _value6.toInt();
-
+            memcpy(ethernet_mac, _mac, sizeof(ethernet_mac));
             send_done();
         }
         else
         {
-            response("Unknown:Gcode!");
+            response("Unknown:Bad parameter!");
         }
     }
     else if (keyValue == "M396")
     {
-        save_eth();
-        init_eth();
-        send_done();
+        if (index_value != 0)
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (slider.isMoving())
+        {
+            response("Unknown:Slider busy!");
+        }
+        else
+        {
+            save_eth();
+            init_eth();
+            send_done();
+        }
     }
     else if (keyValue == "M397")
     {
-        send_ethernet_infor();
+        if (index_value == 0)
+        {
+            send_ethernet_infor();
+        }
+        else
+        {
+            response("Unknown:Bad parameter!");
+        }
     }
     else if (keyValue == "M398")
     {
-        send_ethernet_ip();
+        if (index_value == 0)
+        {
+            send_ethernet_ip();
+        }
+        else
+        {
+            response("Unknown:Bad parameter!");
+        }
     }
     else if (keyValue == "M399")
     {
-        reset_eth_ips();
-        send_ethernet_infor();
+        if (index_value != 0)
+        {
+            response("Unknown:Bad parameter!");
+        }
+        else if (slider.isMoving())
+        {
+            response("Unknown:Slider busy!");
+        }
+        else
+        {
+            reset_eth_ips();
+            send_ethernet_infor();
+        }
     }
     else
     {

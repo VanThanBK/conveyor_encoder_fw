@@ -70,8 +70,6 @@
 #define DEFAULT_HOME_SPEED_SLOW 5   // mm/s, precise re-seek
 #define DEFAULT_HOME_BACKOFF 5      // mm
 #define DEFAULT_HOME_OFFSET 0       // negative home sensor is position zero
-#define DEFAULT_INPUT_ACTIVE_LEVEL(i) 1
-
 #define HOMING_TIMEOUT 60000  // ms a single homing phase may take before it aborts
 #define HOME_SWITCH_DEBOUNCE 3 // ms the switch must stay triggered to count
 
@@ -105,20 +103,21 @@ typedef enum
     HOMING_SEEK_SLOW,
 } HOMING_STATE;
 
-// function assigned to an IO input with M329
+// function assigned to an IO input with M332
 typedef enum
 {
-    INPUT_FUNC_NONE = 0,
+    INPUT_FUNC_NONE = 0, // normal digital input; read with M331, no automatic action
     INPUT_FUNC_GOTO_POS, // move by V mm, relative
     INPUT_FUNC_STOP,     // stop with deceleration, also aborts homing
     INPUT_FUNC_HOME,     // start the homing sequence
     INPUT_FUNC_ESTOP,    // emergency stop, works in any state
+    INPUT_FUNC_JOG_HOLD, // hold to jog; signed V is speed in mm/s
 } INPUT_FUNC;
 
-// function assigned to an IO output with M329, driven from the real motion state
+// function assigned to an IO output with M333, driven from the real motion state
 typedef enum
 {
-    OUTPUT_FUNC_NONE = 0,    // free output, set directly with M329 P<i> V<0|1>
+    OUTPUT_FUNC_NONE = 0,    // free output, set directly with M330 P<i> V<0|1>
     OUTPUT_FUNC_POS_REACHED, // ON while resting at the target of a completed move
     OUTPUT_FUNC_HOMED,       // ON once homing has completed
     OUTPUT_FUNC_POS_OVER,    // ON while the live position is at or past V
@@ -167,8 +166,8 @@ public:
     FAULT_CODE getFault();
     bool isFaulted();
 
-    // ---- M329 IO functions ----
-    void setInputFunction(uint8_t index, uint8_t func, float value, uint8_t level);
+    // ---- M332/M333 IO functions ----
+    void setInputFunction(uint8_t index, uint8_t func, float value);
     void setOutputFunction(uint8_t index, uint8_t func, float value);
 
     void setAddress(uint16_t _address);
@@ -194,10 +193,6 @@ public:
 
     uint8_t input_function[INPUT_COUNT];
     float input_value[INPUT_COUNT];
-    // Level that counts as "pressed". Every channel is conditioned by the board;
-    // encoder-header inputs 4/5 are active-high after their optocoupler and
-    // Schmitt inverter.
-    uint8_t input_active_level[INPUT_COUNT];
 
     uint8_t output_function[OUTPUT_COUNT];
     float output_value[OUTPUT_COUNT];
@@ -241,6 +236,8 @@ private:
     volatile bool is_need_send_done = false;
     bool current_direction = true; // true = moving toward negative
     volatile bool is_moving_pos = false;
+    volatile bool is_jogging = false;
+    uint8_t jog_input = 0xFF;
 
     // controlled stop / retarget
     volatile bool is_stopping;
@@ -324,6 +321,8 @@ private:
     void __seed_input_state(uint8_t index);
     void __execute_input();
     void __input_action(uint8_t index);
+    MOVE_RESULT __start_jog(uint8_t index, float speed);
+    void __stop_jog(uint8_t index);
     void __execute_output();
 };
 
