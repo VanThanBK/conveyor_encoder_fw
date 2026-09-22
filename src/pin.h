@@ -1,7 +1,7 @@
 #pragma once
 
-#define ENCODER_A_PIN PB7
-#define ENCODER_B_PIN PB6
+#define ENCODER_A_PIN PB9
+#define ENCODER_B_PIN PB8
 
 #define INPUT_1_PIN PA12
 #define INPUT_2_PIN PA11
@@ -11,9 +11,9 @@
 #define LED_RUN_PIN PA8
 #define LED_FUNC_PIN PB15
 
-#define MOTOR_PUL_PIN PB8
-#define MOTOR_DIR_PIN PB9
-#define MOTOR_EN_PIN PB5
+#define MOTOR_PUL_PIN PB5
+#define MOTOR_DIR_PIN PB6
+#define MOTOR_EN_PIN PB7
 
 #define OUTPUT_1_PIN PB12
 #define OUTPUT_2_PIN PA2
@@ -55,9 +55,9 @@
 #define OUTPUT_VALUE_ADDRESS 69    // 69..84 (value of 4 outputs, 4 bytes each)
 #define POS_SPEED_ADDRESS 85       // 85..88 (position move speed M313, raw float)
 
-#define MAIN_BOARD_VERSION "2.0"
+#define MAIN_BOARD_VERSION "2.1"
 
-#define FIRMWARE_DATE "19/8/2026"
-#define FIRMWARE_VERSION "2.0.1"
+#define FIRMWARE_DATE "22/9/2026"
+#define FIRMWARE_VERSION "2.1.0"
 
 
