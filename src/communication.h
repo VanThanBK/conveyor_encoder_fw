@@ -12,6 +12,7 @@
 #include "conveyor.h"
 #include <SPI.h>
 #include "Ethernet.h"
+#include "uart_line_receiver.h"
 
 #if defined(__STM32F1__)
 #define USBPort Serial1
@@ -28,8 +29,7 @@ private:
         eth_port
     };
 
-    String receive_string;
-    bool is_string_complete;
+    UartLineReceiver uart_receiver;
 
     String eth_receive_string;
     bool is_eth_string_complete;
@@ -38,7 +38,7 @@ private:
 
     String gcode;
 
-    EthernetServer *eth_server;
+    EthernetServer *eth_server = nullptr;
     EthernetClient eth_client;
 
     uint16_t ethernet_port;
