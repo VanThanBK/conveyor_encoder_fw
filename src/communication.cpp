@@ -301,9 +301,7 @@ void communication::init()
     USBPort.begin(115200);
     USBPort.setTimeout(5);
 
-    receive_string.reserve(100);
-    is_string_complete = false;
-    receive_string = "";
+    uart_receiver.reset();
 
     ethernet_port = DEFAULT_PORT;
     ethernet_mac[0] = 0xDE;
@@ -325,24 +323,26 @@ void communication::init()
 
 void communication::execute()
 {
-    // read cm
+    UartLineReceiver::Result uart_result = UartLineReceiver::NoLine;
     while (USBPort.available())
     {
-        char inChar = (char)USBPort.read();
-
-        if (inChar == '\n')
+        const int byte = USBPort.read();
+        if (byte < 0)
         {
-            is_string_complete = true;
             break;
         }
-
-        if (inChar != '\r')
+        uart_result = uart_receiver.push(static_cast<uint8_t>(byte));
+        if (uart_result != UartLineReceiver::NoLine)
         {
-            receive_string += inChar;
+            break;
         }
     }
 
-    EthernetClient c = eth_server->available();
+    EthernetClient c;
+    if (eth_server != nullptr)
+    {
+        c = eth_server->available();
+    }
     if (c)
     {
         if (!(eth_client && eth_client.connected()))
@@ -371,13 +371,17 @@ void communication::execute()
         }
     }
 
-    if (is_string_complete)
+    if (uart_result != UartLineReceiver::NoLine)
     {
-        gcode = receive_string;
-        receive_string = "";
-        is_string_complete = false;
         current_cmd_port = usb_port;
         digitalWrite(LED_FUNC_PIN, !digitalRead(LED_FUNC_PIN));
+        if (uart_result == UartLineReceiver::LineTooLong)
+        {
+            response("Unknown:UART line too long!");
+            return;
+        }
+        gcode = uart_receiver.line();
+        uart_receiver.reset();
     }
     else if (is_eth_string_complete)
     {
